@@ -1,0 +1,17 @@
+[package]
+name = "nrf52840-host"
+version = "0.1.0"
+authors = ["Erik Svensson <erik.public@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+clap = "2.32"
+byteorder = { version = "1", default-features = false }
+slice-deque = "0.1.16"
+ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4", branch = "messages" }
+esercom = { path = "../esercom" }
+
+[dependencies.serialport]
+version = "3.2"
+default-features = false
+features = []
