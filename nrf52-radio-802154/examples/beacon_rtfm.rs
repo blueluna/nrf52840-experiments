@@ -156,8 +156,7 @@ const APP: () = {
         let mut radio = resources.RADIO;
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
-        if radio.receive_ready() {
-            hprintln!("E").unwrap();
+        if radio.is_phyend_event() {
             let packet_len = radio.receive(&mut packet);
             radio.receive_prepare();
             if packet_len > 0 {
@@ -176,8 +175,12 @@ const APP: () = {
                 (*resources.LED_2).set_low();
             }
         } else if radio.is_disabled_event() {
-            hprintln!("D").unwrap();
+            hprintln!("Disabled").unwrap();
             radio.clear_disabled();
+            radio.receive_prepare();
+        } else if radio.is_ccabusy_event() {
+            hprintln!("CCA busy").unwrap();
+            radio.clear_ccabusy();
             radio.receive_prepare();
         }
     }

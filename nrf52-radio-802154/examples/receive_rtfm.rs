@@ -92,7 +92,7 @@ const APP: () = {
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let radio = resources.RADIO;
-        if radio.receive_ready() {
+        if radio.is_phyend_event() {
             let packet_len = radio.receive(&mut packet);
             radio.receive_prepare();
             if packet_len > 0 {
