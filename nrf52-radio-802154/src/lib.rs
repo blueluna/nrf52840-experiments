@@ -97,6 +97,8 @@ impl Radio {
     }
 
     /// Configure transmission power
+    ///
+    /// Valid power levels are 8-2,0,-4,-8,-12,-16,-20,-40 dBm
     pub fn set_transmission_power(&mut self, power: i8) {
         match power {
             8 => self.radio.txpower.write(|w| w.txpower().pos8d_bm()),
@@ -117,6 +119,7 @@ impl Radio {
         }
     }
 
+    // Enter the disabled state
     fn enter_disabled(&mut self) {
         if !self.state().is_disabled() {
             self.radio
@@ -150,6 +153,7 @@ impl Radio {
         self.radio.events_phyend.read().events_phyend().bit_is_set()
     }
 
+    /// Has the radio disabled event been triggered
     pub fn is_disabled_event(&mut self) -> bool {
         self.radio
             .events_disabled
@@ -158,10 +162,12 @@ impl Radio {
             .bit_is_set()
     }
 
+    /// Clear the radio disabled event
     pub fn clear_disabled(&mut self) {
         self.radio.events_disabled.reset();
     }
 
+    /// Has the clear channel assesment busy event been triggered
     pub fn is_ccabusy_event(&mut self) -> bool {
         self.radio
             .events_ccabusy
@@ -170,6 +176,7 @@ impl Radio {
             .bit_is_set()
     }
 
+    /// Clear the clear channel assesment busy event
     pub fn clear_ccabusy(&mut self) {
         self.radio.events_ccabusy.reset();
     }
@@ -215,16 +222,30 @@ impl Radio {
     }
 
     /// Send the data
+    ///
+    /// Data should contain the data to be sent without the PHR and FCS.
+    ///
+    /// # Return
+    ///
+    /// Returns the number of bytes sent, or zero if no data could be sent.
+    ///
     pub fn send(&mut self, data: &[u8]) -> usize {
         self.enter_disabled();
-        let length = data.len();
+        let length = data.len() + 2; // The radio will add FCS, two octets
         assert!(length < (MAX_PACKET_LENGHT - 1) as usize);
         self.tx_buf[0] = length as u8;
-        self.tx_buf[1..(length + 1)].copy_from_slice(data);
+        self.tx_buf[1..(length - 1)].copy_from_slice(data);
         // Configure transmit buffer
         let tx_buf = &mut self.tx_buf as *mut _ as u32;
         self.radio.packetptr.write(|w| unsafe { w.bits(tx_buf) });
         // Configure shortcuts
+        //
+        // The radio goes through following states when sending a 802.15.4 packet
+        //
+        // enable RX -> ramp up RX -> clear channel assesment (CCA) -> CCA result
+        // CCA idle -> enable TX -> start TX -> TX -> end (PHYEND)
+        //
+        // CCA might end up in the event CCABUSY in which there will be no transmission
         self.radio.shorts.reset();
         self.radio.shorts.write(|w| {
             w.rxready_ccastart()
@@ -238,6 +259,7 @@ impl Radio {
         });
         // Configure interrupts
         self.radio.intenset.reset();
+        // Enable interrupts for PHYEND and DISABLED
         self.radio
             .intenset
             .write(|w| w.phyend().set().disabled().set());

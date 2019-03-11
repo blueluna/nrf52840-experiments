@@ -177,13 +177,6 @@ fn main() {
             loop {
                 match port.read(&mut data) {
                     Ok(rx_count) => {
-                        /*
-                                    print!("Receive {:3} bytes ", rx_count);
-                                    for b in &data[..rx_count] {
-                                        print!("{:02x}", b);
-                                    }
-                                    println!("");
-                        */
                         buffer.extend_from_slice(&data[..rx_count]);
                         loop {
                             match esercom::com_decode(buffer.as_slice(), &mut data) {

@@ -28,7 +28,6 @@ Use the `receive_rtfm` example to do recive only. The recieve only code is fairl
 
 ## Send beacon
 
-The is also a `beacon_rtfm` example, this will try to send a beacon request every sixty seconds.
-This example seems to fail shortly after sending the beacon request.
+The is also a `beacon_rtfm` example, this will try to send a beacon request every thirty seconds.
 
 [JLinkGDBServer]:https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/
