@@ -12,30 +12,12 @@ use nrf52840_dk_bsp::hal::{gpio, prelude::*, uarte};
 use nrf52840_pac as pac;
 
 use esercom;
-use ieee802154;
-use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
-
-pub fn build_beacon_request(sequence: u8, mut data: &mut [u8]) -> usize {
-    let mut payload = [0u8; 1];
-    let command = ieee802154::mac_command::Command::BeaconRequest;
-    let size = command.encode(&mut payload);
-    let frame = ieee802154::mac::Frame {
-        header: ieee802154::mac::Header {
-            seq: sequence,
-            frame_type: ieee802154::mac::FrameType::MacCommand,
-            security: ieee802154::mac::Security::None,
-            frame_pending: false,
-            ack_request: false,
-            pan_id_compress: false,
-            version: ieee802154::mac::FrameVersion::Ieee802154_2003,
-            destination: ieee802154::mac::Address::broadcast(&ieee802154::mac::AddressMode::Short),
-            source: ieee802154::mac::Address::None,
-        },
-        payload: &payload[..size],
-        footer: [0u8; 2],
-    };
-    frame.encode(&mut data, ieee802154::mac::WriteFooter::No)
-}
+use ieee802154::mac::ExtendedAddress;
+use nrf52_radio_802154::{
+    network_layer::NetworkState,
+    radio::{Radio, MAX_PACKET_LENGHT},
+    NetworkLayer,
+};
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
@@ -43,8 +25,8 @@ const APP: () = {
     static mut LED_1: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut LED_2: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut RADIO: Radio = ();
-    static mut SEQUENCE: u8 = 0u8;
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
+    static mut NETWORK: NetworkLayer = ();
 
     #[init]
     fn init() {
@@ -80,6 +62,11 @@ const APP: () = {
             .events_lfclkstarted()
             .bit_is_clear()
         {}
+
+        let devaddr_lo = device.FICR.deviceaddr[0].read().bits();
+        let devaddr_hi = device.FICR.deviceaddr[1].read().bits() as u16;
+        let extended_address = (devaddr_hi as u64) << 48 | (devaddr_lo as u64) << 16;
+        let extended_address = ExtendedAddress(extended_address);
 
         // Configure timer1 to generate a interrupt every second
         let timer1 = device.TIMER1;
@@ -122,6 +109,7 @@ const APP: () = {
         LED_2 = pins.p0_14.degrade().into_push_pull_output(gpio::Level::Low);
         RADIO = radio;
         UARTE = uarte0;
+        NETWORK = NetworkLayer::new(extended_address);
     }
 
     #[idle]
@@ -129,7 +117,7 @@ const APP: () = {
         loop {}
     }
 
-    #[interrupt(resources = [BEACON_TIMER, RADIO, SEQUENCE, LED_1],)]
+    #[interrupt(resources = [BEACON_TIMER, LED_1, NETWORK, RADIO],)]
     fn TIMER1() {
         let timer = resources.BEACON_TIMER;
         // Clear event and restart
@@ -137,27 +125,50 @@ const APP: () = {
         timer.tasks_clear.write(|w| w.tasks_clear().set_bit());
         timer.tasks_start.write(|w| w.tasks_start().set_bit());
         (*resources.LED_1).set_low();
+
+        let mut network = resources.NETWORK;
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
-        let size = build_beacon_request(*resources.SEQUENCE, &mut packet);
-        let used = radio.queue_transmission(&mut packet[..size]);
-        if used != size {
-            hprintln!("Failed to send beacon").unwrap();
+        match network.state() {
+            NetworkState::Orphan => {
+                let size = network.build_packet(&mut packet);
+                let _used = radio.queue_transmission(&mut packet[..size]);
+            }
+            NetworkState::Join => {
+                hprintln!("Join network").unwrap();
+            }
+            NetworkState::QueryStatus => {
+                hprintln!("Query status").unwrap();
+            }
+            NetworkState::Associated => {
+                hprintln!("Associated").unwrap();
+            }
         }
-        *resources.SEQUENCE = resources.SEQUENCE.wrapping_add(1);
     }
 
-    #[interrupt(resources = [RADIO, UARTE, LED_1, LED_2],)]
+    #[interrupt(resources = [LED_1, LED_2, NETWORK, RADIO, UARTE],)]
     fn RADIO() {
         let uarte = resources.UARTE;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let mut radio = resources.RADIO;
+        let mut network = resources.NETWORK;
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
         if radio.is_phyend_event() {
             let packet_len = radio.receive(&mut packet);
-            radio.receive_prepare();
+            let respond = if packet_len > 0 {
+                network.radio_receive(&packet[1..(packet_len - 1)])
+            } else {
+                false
+            };
+            if respond {
+                let mut tx_packet = [0u8; MAX_PACKET_LENGHT as usize];
+                let tx_size = network.build_packet(&mut tx_packet);
+                let _used = radio.queue_transmission(&mut tx_packet[..tx_size]);
+            } else {
+                radio.receive_prepare();
+            }
             if packet_len > 0 {
                 match esercom::com_encode(
                     esercom::MessageType::RadioReceive,

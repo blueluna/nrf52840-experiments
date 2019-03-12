@@ -12,7 +12,7 @@ use nrf52840_dk_bsp::hal::{gpio, prelude::*, uarte};
 use nrf52840_pac as pac;
 
 use esercom;
-use nrf52_radio_802154::{Radio, MAX_PACKET_LENGHT};
+use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
