@@ -221,20 +221,25 @@ impl Radio {
         0
     }
 
-    /// Send the data
+    /// Queue a transmission of the provided data
     ///
-    /// Data should contain the data to be sent without the PHR and FCS.
+    /// `data` should contain the packet payload to be sent without the PHR and FCS.
+    ///
+    /// If the transmission succeeds the PHYEND event shall signal. The
+    /// transmission might fail if the channel is used, then the CCABUSY event
+    /// will be signalled.
     ///
     /// # Return
     ///
-    /// Returns the number of bytes sent, or zero if no data could be sent.
+    /// Returns the number of bytes queued for transmission, or zero if no data could be sent.
     ///
-    pub fn send(&mut self, data: &[u8]) -> usize {
+    pub fn queue_transmission(&mut self, data: &[u8]) -> usize {
         self.enter_disabled();
-        let length = data.len() + 2; // The radio will add FCS, two octets
-        assert!(length < (MAX_PACKET_LENGHT - 1) as usize);
-        self.tx_buf[0] = length as u8;
-        self.tx_buf[1..(length - 1)].copy_from_slice(data);
+        let data_length = data.len(); 
+        let tx_length = data_length + 2; // The radio will add FCS, two octets
+        assert!(tx_length < (MAX_PACKET_LENGHT - 1) as usize);
+        self.tx_buf[0] = tx_length as u8;
+        self.tx_buf[1..(tx_length - 1)].copy_from_slice(data);
         // Configure transmit buffer
         let tx_buf = &mut self.tx_buf as *mut _ as u32;
         self.radio.packetptr.write(|w| unsafe { w.bits(tx_buf) });
@@ -262,9 +267,9 @@ impl Radio {
         // Enable interrupts for PHYEND and DISABLED
         self.radio
             .intenset
-            .write(|w| w.phyend().set().disabled().set());
+            .write(|w| w.phyend().set().disabled().set().ccabusy().set() );
         // Start task
         self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
-        length
+        data_length
     }
 }

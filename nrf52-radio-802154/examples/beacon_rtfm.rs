@@ -140,7 +140,7 @@ const APP: () = {
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let size = build_beacon_request(*resources.SEQUENCE, &mut packet);
-        let used = radio.send(&mut packet[..size]);
+        let used = radio.queue_transmission(&mut packet[..size]);
         if used != size {
             hprintln!("Failed to send beacon").unwrap();
         }
