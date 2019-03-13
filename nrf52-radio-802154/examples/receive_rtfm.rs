@@ -81,11 +81,6 @@ const APP: () = {
         UARTE = uarte0;
     }
 
-    #[idle]
-    fn idle() -> ! {
-        loop {}
-    }
-
     #[interrupt(resources = [RADIO, UARTE],)]
     fn RADIO() {
         let uarte = resources.UARTE;

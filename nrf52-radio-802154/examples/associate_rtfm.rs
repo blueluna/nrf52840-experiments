@@ -112,11 +112,6 @@ const APP: () = {
         NETWORK = NetworkLayer::new(extended_address);
     }
 
-    #[idle]
-    fn idle() -> ! {
-        loop {}
-    }
-
     #[interrupt(resources = [BEACON_TIMER, LED_1, NETWORK, RADIO],)]
     fn TIMER1() {
         let timer = resources.BEACON_TIMER;

@@ -124,11 +124,6 @@ const APP: () = {
         UARTE = uarte0;
     }
 
-    #[idle]
-    fn idle() -> ! {
-        loop {}
-    }
-
     #[interrupt(resources = [BEACON_TIMER, RADIO, SEQUENCE, LED_1],)]
     fn TIMER1() {
         let timer = resources.BEACON_TIMER;
