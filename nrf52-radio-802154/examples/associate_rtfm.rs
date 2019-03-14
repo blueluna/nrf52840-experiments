@@ -73,7 +73,7 @@ const APP: () = {
         timer1.mode.write(|w| w.mode().timer());
         timer1.bitmode.write(|w| w.bitmode()._32bit());
         timer1.prescaler.write(|w| unsafe { w.prescaler().bits(4) });
-        timer1.cc[0].write(|w| unsafe { w.bits(30000000) });
+        timer1.cc[0].write(|w| unsafe { w.bits(10000000) });
         timer1.shorts.write(|w| w.compare0_stop().enabled());
         timer1.intenset.write(|w| w.compare0().set_bit());
         timer1.tasks_start.write(|w| w.tasks_start().set_bit());
@@ -126,11 +126,14 @@ const APP: () = {
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         match network.state() {
             NetworkState::Orphan => {
+                hprintln!("Search").unwrap();
                 let size = network.build_packet(&mut packet);
                 let _used = radio.queue_transmission(&mut packet[..size]);
             }
             NetworkState::Join => {
                 hprintln!("Join network").unwrap();
+                let size = network.build_packet(&mut packet);
+                let _used = radio.queue_transmission(&mut packet[..size]);
             }
             NetworkState::QueryStatus => {
                 hprintln!("Query status").unwrap();
@@ -150,43 +153,31 @@ const APP: () = {
         let mut network = resources.NETWORK;
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
-        if radio.is_phyend_event() {
-            let packet_len = radio.receive(&mut packet);
-            let respond = if packet_len > 0 {
-                network.radio_receive(&packet[1..(packet_len - 1)])
-            } else {
-                false
-            };
-            if respond {
-                let mut tx_packet = [0u8; MAX_PACKET_LENGHT as usize];
-                let tx_size = network.build_packet(&mut tx_packet);
-                let _used = radio.queue_transmission(&mut tx_packet[..tx_size]);
-            } else {
-                radio.receive_prepare();
-            }
-            if packet_len > 0 {
-                match esercom::com_encode(
-                    esercom::MessageType::RadioReceive,
-                    &packet[1..packet_len],
-                    &mut host_packet,
-                ) {
-                    Ok(written) => {
-                        uarte.write(&host_packet[..written]).unwrap();
-                    }
-                    Err(_) => {
-                        hprintln!("Failed to encode packet").unwrap();
-                    }
+        let packet_len = radio.receive(&mut packet);
+        let respond = if packet_len > 0 {
+            network.radio_receive(&packet[1..(packet_len + 1)])
+        } else {
+            false
+        };
+        if respond {
+            let mut tx_packet = [0u8; MAX_PACKET_LENGHT as usize];
+            let tx_size = network.build_packet(&mut tx_packet);
+            let _used = radio.queue_transmission(&mut tx_packet[..tx_size]);
+        }
+        if packet_len > 0 {
+            match esercom::com_encode(
+                esercom::MessageType::RadioReceive,
+                &packet[1..packet_len],
+                &mut host_packet,
+            ) {
+                Ok(written) => {
+                    uarte.write(&host_packet[..written]).unwrap();
                 }
-                (*resources.LED_2).set_low();
+                Err(_) => {
+                    hprintln!("Failed to encode packet").unwrap();
+                }
             }
-        } else if radio.is_disabled_event() {
-            hprintln!("Disabled").unwrap();
-            radio.clear_disabled();
-            radio.receive_prepare();
-        } else if radio.is_ccabusy_event() {
-            hprintln!("CCA busy").unwrap();
-            radio.clear_ccabusy();
-            radio.receive_prepare();
+            (*resources.LED_2).set_low();
         }
     }
 };

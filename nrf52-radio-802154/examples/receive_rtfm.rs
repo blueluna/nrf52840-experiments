@@ -87,26 +87,22 @@ const APP: () = {
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let radio = resources.RADIO;
-        if radio.is_phyend_event() {
-            let packet_len = radio.receive(&mut packet);
-            radio.receive_prepare();
-            if packet_len > 0 {
-                match esercom::com_encode(
-                    esercom::MessageType::RadioReceive,
-                    &packet[1..packet_len],
-                    &mut host_packet,
-                ) {
-                    Ok(written) => {
-                        uarte.write(&host_packet[..written]).unwrap();
-                    }
-                    Err(_) => {
-                        hprintln!("Failed to encode packet").unwrap();
-                    }
+        let packet_len = radio.receive(&mut packet);
+        if packet_len > 0 {
+            match esercom::com_encode(
+                esercom::MessageType::RadioReceive,
+                &packet[1..packet_len],
+                &mut host_packet,
+            ) {
+                Ok(written) => {
+                    uarte.write(&host_packet[..written]).unwrap();
+                }
+                Err(_) => {
+                    hprintln!("Failed to encode packet").unwrap();
                 }
             }
-        } else if radio.is_disabled_event() {
-            radio.clear_disabled();
-            radio.receive_prepare();
+        } else {
+            hprintln!("no data").unwrap();
         }
     }
 };

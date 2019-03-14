@@ -1,5 +1,6 @@
 //! 802.15.4 nRF52840 Radio
 
+use cortex_m_semihosting::hprintln;
 use nrf52840_pac::{radio, RADIO};
 
 pub const MAX_PACKET_LENGHT: u8 = 128;
@@ -27,8 +28,7 @@ pub type PacketBuffer = [u8; MAX_PACKET_LENGHT as usize];
 ///
 pub struct Radio {
     radio: RADIO,
-    rx_buf: PacketBuffer,
-    tx_buf: PacketBuffer,
+    buffer: PacketBuffer,
 }
 
 impl Radio {
@@ -66,15 +66,17 @@ impl Radio {
         }
         // Set transmission power to 4dBm
         radio.txpower.write(|w| w.txpower().pos4d_bm());
-        // Enable ready->start and end->disable shortcuts
+
+        // Configure interrupts
+        radio.intenset.reset();
+        // Enable interrupts for PHYEND and DISABLED
         radio
-            .shorts
-            .write(|w| w.ready_start().enabled().end_disable().enabled());
+            .intenset
+            .write(|w| w.ready().set().phyend().set().ccabusy().set());
 
         Self {
             radio,
-            rx_buf: [0u8; MAX_PACKET_LENGHT as usize],
-            tx_buf: [0u8; MAX_PACKET_LENGHT as usize],
+            buffer: [0u8; MAX_PACKET_LENGHT as usize],
         }
     }
 
@@ -124,64 +126,38 @@ impl Radio {
                 .tasks_disable
                 .write(|w| w.tasks_disable().set_bit());
             loop {
-                if self.state().is_disabled() {
+                if self
+                    .radio
+                    .events_disabled
+                    .read()
+                    .events_disabled()
+                    .bit_is_set()
+                {
                     break;
                 }
             }
         }
-        self.clear_disabled();
+        self.radio.events_disabled.reset();
+    }
+
+    /// Get the radio state
+    pub fn state(&mut self) -> radio::state::STATER {
+        self.radio.state.read().state()
     }
 
     /// Prepare to receive data
     pub fn receive_prepare(&mut self) {
         self.enter_disabled();
         self.radio.shorts.reset();
-        self.radio
-            .shorts
-            .write(|w| w.rxready_start().enabled().phyend_disable().enabled());
-        let rx_buf = &mut self.rx_buf as *mut _ as u32;
-        self.radio.packetptr.write(|w| unsafe { w.bits(rx_buf) });
-        self.radio.intenset.reset();
-        self.radio.intenset.write(|w| w.phyend().set());
+        self.radio.shorts.write(|w| {
+            w.rxready_start()
+                .enabled()
+                .phyend_disable()
+                .enabled()
+                .disabled_rxen()
+                .enabled()
+        });
         self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
-    }
-
-    /// The radio phyend event has been triggered, operation is done
-    pub fn is_phyend_event(&mut self) -> bool {
-        self.radio.events_phyend.read().events_phyend().bit_is_set()
-    }
-
-    /// Has the radio disabled event been triggered
-    pub fn is_disabled_event(&mut self) -> bool {
-        self.radio
-            .events_disabled
-            .read()
-            .events_disabled()
-            .bit_is_set()
-    }
-
-    /// Clear the radio disabled event
-    pub fn clear_disabled(&mut self) {
-        self.radio.events_disabled.reset();
-    }
-
-    /// Has the clear channel assesment busy event been triggered
-    pub fn is_ccabusy_event(&mut self) -> bool {
-        self.radio
-            .events_ccabusy
-            .read()
-            .events_ccabusy()
-            .bit_is_set()
-    }
-
-    /// Clear the clear channel assesment busy event
-    pub fn clear_ccabusy(&mut self) {
-        self.radio.events_ccabusy.reset();
-    }
-
-    /// Get the radio state
-    pub fn state(&mut self) -> radio::state::STATER {
-        self.radio.state.read().state()
     }
 
     /// Read received data into buffer
@@ -201,20 +177,48 @@ impl Radio {
     /// Returns the number of bytes received, or zero if no data could be received.
     ///
     pub fn receive(&mut self, buffer: &mut PacketBuffer) -> usize {
-        self.radio.events_phyend.reset();
-        if self.radio.crcstatus.read().crcstatus().is_crcok() {
-            let phr = self.rx_buf[0];
+        if self.radio.events_phyend.read().events_phyend().bit_is_set() {
+            self.radio.events_phyend.reset();
+            self.radio.shorts.reset();
+            self.radio.shorts.write(|w| {
+                w.rxready_start()
+                    .enabled()
+                    .phyend_disable()
+                    .enabled()
+                    .disabled_rxen()
+                    .enabled()
+            });
+
+            let phr = self.buffer[0];
             // Clear PHR so we do not read old data next time
-            self.rx_buf[0] = 0;
+            self.buffer[0] = 0;
             let length = (phr & 0x7f) as usize;
             // PHR contains length of the packet in the low 7 bits, MSB
             // indicates if this packet is a 802.11.4 packet or not
             // 16-bit CRC has been removed, 1 octet LQI has been added to the end
             if length > 0 && (phr & 0x80) == 0 {
                 buffer[0] = phr & 0x7f;
-                buffer[1..(length + 1)].copy_from_slice(&self.rx_buf[1..(length + 1)]);
+                buffer[1..(length + 1)].copy_from_slice(&self.buffer[1..(length + 1)]);
                 return length;
             }
+        }
+        if self.radio.events_ready.read().events_ready().bit_is_set() {
+            self.radio.events_ready.reset();
+            let buffer_ptr = &mut self.buffer as *mut _ as u32;
+            self.radio
+                .packetptr
+                .write(|w| unsafe { w.bits(buffer_ptr) });
+        }
+        if self
+            .radio
+            .events_ccabusy
+            .read()
+            .events_ccabusy()
+            .bit_is_set()
+        {
+            self.radio.events_ccabusy.reset();
+            hprintln!("CCABUSY").unwrap();
+            self.receive_prepare();
         }
         0
     }
@@ -236,11 +240,8 @@ impl Radio {
         let data_length = data.len();
         let tx_length = data_length + 2; // The radio will add FCS, two octets
         assert!(tx_length < (MAX_PACKET_LENGHT - 1) as usize);
-        self.tx_buf[0] = tx_length as u8;
-        self.tx_buf[1..(tx_length - 1)].copy_from_slice(data);
-        // Configure transmit buffer
-        let tx_buf = &mut self.tx_buf as *mut _ as u32;
-        self.radio.packetptr.write(|w| unsafe { w.bits(tx_buf) });
+        self.buffer[0] = tx_length as u8;
+        self.buffer[1..(tx_length - 1)].copy_from_slice(data);
         // Configure shortcuts
         //
         // The radio goes through following states when sending a 802.15.4 packet
@@ -257,15 +258,13 @@ impl Radio {
                 .enabled()
                 .txready_start()
                 .enabled()
+                .ccabusy_disable()
+                .enabled()
                 .phyend_disable()
                 .enabled()
+                .disabled_rxen()
+                .enabled()
         });
-        // Configure interrupts
-        self.radio.intenset.reset();
-        // Enable interrupts for PHYEND and DISABLED
-        self.radio
-            .intenset
-            .write(|w| w.phyend().set().disabled().set().ccabusy().set());
         // Start task
         self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
         data_length

@@ -72,7 +72,7 @@ impl NetworkLayer {
                             self.coordinator_id.id = Some(src_id);
                             self.coordinator_id.short = Some(src_short);
                             self.state = NetworkState::Join;
-                            true
+                            false
                         }
                         _ => false,
                     }
@@ -130,7 +130,7 @@ impl NetworkLayer {
         s
     }
 
-    fn build_beacon(&mut self, mut data: &mut [u8]) -> usize {
+    fn build_beacon_request(&mut self, mut data: &mut [u8]) -> usize {
         let mut payload = [0u8; 1];
         let command = Command::BeaconRequest;
         let size = command.encode(&mut payload);
@@ -213,7 +213,7 @@ impl NetworkLayer {
 
     pub fn build_packet(&mut self, mut data: &mut [u8]) -> usize {
         match self.state {
-            NetworkState::Orphan => self.build_beacon(&mut data),
+            NetworkState::Orphan => self.build_beacon_request(&mut data),
             NetworkState::Join => self.build_association_request(&mut data),
             NetworkState::QueryStatus => self.build_data_request(&mut data),
             NetworkState::Associated => 0,
