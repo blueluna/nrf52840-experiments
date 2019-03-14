@@ -1,12 +1,6 @@
-# Experiments with nRF52840
+# IEEE 802.15.4 with nRF52840
 
-Experiments with nRF52840-DK
-
-## Current limitations
-
- * The turnaround for RX to RX and TX to RX seems to take to long time,
-   sometimes the receiver fail to receive packets.
- * The examples doesn't seem to work when built as release.
+Work in progress 802.15.4 radio fornRF52840-DK.
 
 ## Debug
 
@@ -48,7 +42,6 @@ With this example there is an state machine which tries to send and receive
 packets with the goal to associate with a PAN.
 
 ```text
-
    Device                      Coordinator
      |                             |
      | ----- beacon request -----> |
@@ -70,9 +63,5 @@ Note that the coordinator must permit new associations to the PAN.
 ```
 $ cargo run --example associate_rtfm
 ```
-
-Unfortunately this doesn't seem to work since the acknowledge after sending
-the association request isn't picked up by the radio (slow TX to RX
-turnaround?)
 
 [JLinkGDBServer]:https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/

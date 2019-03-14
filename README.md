@@ -1,6 +1,8 @@
-# Experiments with nRF52840-DK
+# Work in progress IEEE 802.15.4 for nRF52840
 
-This is some experiments with using the nrf52840 radio in 802.14.5 mode.
+This is some experiments with using the nRF52840 radio in 802.14.5 mode. The
+examples in this repository assumes that the nRF52840-DK board is used. The
+host program has only been tested with Fedora 29 Linux.
 
 There is a target (nRF52840-DK) part, a host part and a serialiser/deserialiser
 part. The nRF52840 communicates with the host over the USB-serial transport.
