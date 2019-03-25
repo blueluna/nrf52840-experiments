@@ -1,12 +1,9 @@
 //! 802.15.4 Network Layer
 
-use ieee802154::{
-    mac::{
-        beacon::Beacon,
-        command::{AssociationStatus, CapabilityInformation, Command},
-        Address, AddressMode, ExtendedAddress, Frame, FrameContent, FrameType, FrameVersion, Header, PanId,
-        Security, ShortAddress, WriteFooter,
-    },
+use ieee802154::mac::{
+    command::{AssociationStatus, CapabilityInformation, Command},
+    Address, AddressMode, ExtendedAddress, Frame, FrameContent, FrameType, FrameVersion, Header,
+    PanId, Security, ShortAddress, WriteFooter,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,37 +59,34 @@ impl NetworkLayer {
         } else {
             return false;
         };
-        match Beacon::decode(frame.payload) {
-            Ok((beacon, _)) => {
-                if beacon.superframe_spec.pan_coordinator
-                    && beacon.superframe_spec.association_permit
-                {
-                    match self.state {
-                        NetworkState::Orphan => {
-                            self.coordinator_id.id = Some(src_id);
-                            self.coordinator_id.short = Some(src_short);
-                            self.state = NetworkState::Join;
-                            false
-                        }
-                        _ => false,
+        if let FrameContent::Beacon(beacon) = &frame.content {
+            if beacon.superframe_spec.pan_coordinator && beacon.superframe_spec.association_permit {
+                match self.state {
+                    NetworkState::Orphan => {
+                        self.coordinator_id.id = Some(src_id);
+                        self.coordinator_id.short = Some(src_short);
+                        self.state = NetworkState::Join;
+                        false
                     }
-                } else {
-                    false
+                    _ => false,
                 }
+            } else {
+                false
             }
-            Err(_) => false,
+        } else {
+            false
         }
     }
 
     fn handle_mac_command(&mut self, frame: &Frame) -> bool {
-        match Command::decode(frame.payload) {
-            Ok((command, _)) => match command {
+        if let FrameContent::Command(command) = &frame.content {
+            match command {
                 Command::AssociationResponse(addr, status) => {
-                    if status == AssociationStatus::Successful {
+                    if *status == AssociationStatus::Successful {
                         match self.state {
                             NetworkState::QueryStatus => {
                                 self.id.id = frame.header.source.pan_id();
-                                self.id.short = Some(addr);
+                                self.id.short = Some(*addr);
                                 self.state = NetworkState::Associated;
                             }
                             _ => {}
@@ -100,8 +94,7 @@ impl NetworkLayer {
                     }
                 }
                 _ => {}
-            },
-            Err(_) => {}
+            }
         }
         false
     }

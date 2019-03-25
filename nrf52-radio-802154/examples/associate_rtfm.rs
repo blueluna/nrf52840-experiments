@@ -63,9 +63,18 @@ const APP: () = {
             .bit_is_clear()
         {}
 
+        // MAC (EUI-48) address to EUI-64
+        // Add FF FE in the middle
+        //
+        //    01 23 45 67 89 AB
+        //  /  /  /       \  \  \
+        // 01 23 45 FF FE 67 89 AB
         let devaddr_lo = device.FICR.deviceaddr[0].read().bits();
         let devaddr_hi = device.FICR.deviceaddr[1].read().bits() as u16;
-        let extended_address = (devaddr_hi as u64) << 48 | (devaddr_lo as u64) << 16;
+        let extended_address = (devaddr_hi as u64) << 48
+            | ((devaddr_lo & 0xff000000) as u64) << 40
+            | ((devaddr_lo & 0x00ffffff) as u64)
+            | 0x000000fffe000000u64;
         let extended_address = ExtendedAddress(extended_address);
 
         // Configure timer1 to generate a interrupt every second
