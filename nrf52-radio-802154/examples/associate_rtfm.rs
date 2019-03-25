@@ -155,7 +155,7 @@ const APP: () = {
         (*resources.LED_2).set_high();
         let packet_len = radio.receive(&mut packet);
         let respond = if packet_len > 0 {
-            network.radio_receive(&packet[1..(packet_len + 1)])
+            network.radio_receive(&packet[1..(packet_len - 1)])
         } else {
             false
         };

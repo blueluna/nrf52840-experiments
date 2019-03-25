@@ -8,14 +8,14 @@ use serialport::prelude::*;
 use slice_deque::SliceDeque;
 
 use esercom;
-use ieee802154::{beacon::{Beacon, BeaconOrder}, mac, mac_command};
+use ieee802154::mac::{beacon::{BeaconOrder}, self};
 
 fn parse_packet(packet: &[u8]) {
     use mac::Address;
-    match mac::Frame::decode(packet) {
-        Ok(p) => {
+    match mac::Frame::decode(packet, false) {
+        Ok(frame) => {
             print!("Packet",);
-            match p.header.frame_type {
+            match frame.header.frame_type {
                 mac::FrameType::Acknowledgement => {
                     print!(" TYPE: Acknowledgement");
                 }
@@ -29,18 +29,18 @@ fn parse_packet(packet: &[u8]) {
                     print!(" TYPE: Command");
                 }
             }
-            print!("{}", if p.header.frame_pending { " PEND" } else { "" });
-            print!("{}", if p.header.ack_request { " ACK" } else { "" });
+            print!("{}", if frame.header.frame_pending { " PEND" } else { "" });
+            print!("{}", if frame.header.ack_request { " ACK" } else { "" });
             print!(
                 "{}",
-                if p.header.pan_id_compress {
+                if frame.header.pan_id_compress {
                     " CMPR"
                 } else {
                     ""
                 }
             );
-            print!(" SEQ: {}", p.header.seq);
-            match p.header.destination {
+            print!(" SEQ: {}", frame.header.seq);
+            match frame.header.destination {
                 Address::Short(i, a) => {
                     print!(" DST: {:04x}:{:04x}", i.0, a.0);
                 }
@@ -51,7 +51,7 @@ fn parse_packet(packet: &[u8]) {
                     print!(" DST: None");
                 }
             }
-            match p.header.source {
+            match frame.header.source {
                 Address::Short(i, a) => {
                     print!(" SRC: {:04x}:{:04x}", i.0, a.0);
                 }
@@ -62,53 +62,41 @@ fn parse_packet(packet: &[u8]) {
                     print!(" SRC: None");
                 }
             }
-            match p.header.frame_type {
-                mac::FrameType::Acknowledgement => {
+            match frame.content {
+                mac::FrameContent::Acknowledgement => {
                     // Nothing here
-                }
-                mac::FrameType::Beacon => match Beacon::decode(p.payload) {
-                    Ok((beacon, _)) => {
-                        print!(" Beacon ");
-                        if beacon.superframe_spec.beacon_order != BeaconOrder::OnDemand {
-                            print!("Beacon order {:?} Superframe order {:?} Final CAP slot {}",
-                                   beacon.superframe_spec.beacon_order,
-                                   beacon.superframe_spec.superframe_order,
-                                   beacon.superframe_spec.final_cap_slot)
-                        }
-                        let coordinator = if beacon.superframe_spec.pan_coordinator { "Coordinator" } else { "Device" };
-                        let association_permit = if beacon.superframe_spec.association_permit { "Permit association" } else { "Deny association" };
-                        print!("\"{}\" \"{}\"", coordinator, association_permit);
-                        if beacon.superframe_spec.battery_life_extension {
-                            print!("\"Battery life extension\"");
-                        }
-                        if beacon.guaranteed_time_slot_info.permit {
-                            print!("GTS slots {}" , beacon.guaranteed_time_slot_info.slots().len())
-                        }
+                },
+                mac::FrameContent::Beacon(beacon) => {
+                    print!(" Beacon ");
+                    if beacon.superframe_spec.beacon_order != BeaconOrder::OnDemand {
+                        print!("Beacon order {:?} Superframe order {:?} Final CAP slot {}",
+                                beacon.superframe_spec.beacon_order,
+                                beacon.superframe_spec.superframe_order,
+                                beacon.superframe_spec.final_cap_slot)
                     }
-                    Err(_) => {
-                        print!(" Beacon: Failed to decode");
+                    let coordinator = if beacon.superframe_spec.pan_coordinator { "Coordinator" } else { "Device" };
+                    let association_permit = if beacon.superframe_spec.association_permit { "Permit association" } else { "Deny association" };
+                    print!("\"{}\" \"{}\"", coordinator, association_permit);
+                    if beacon.superframe_spec.battery_life_extension {
+                        print!("\"Battery life extension\"");
+                    }
+                    if beacon.guaranteed_time_slot_info.permit {
+                        print!("GTS slots {}" , beacon.guaranteed_time_slot_info.slots().len())
+                    }
+                    print!(" Payload: ");
+                    for b in frame.payload {
+                        print!("{:02x}", b);
                     }
                 },
-                mac::FrameType::Data => {
+                mac::FrameContent::Data => {
                     // TODO: Parse data at higher layer?
                     print!(" Payload: ");
-                    for b in p.payload {
+                    for b in frame.payload {
                         print!("{:02x}", b);
                     }
                 }
-                mac::FrameType::MacCommand => {
-                    if p.payload.len() > 0 {
-                        match mac_command::Command::decode(p.payload) {
-                            Ok((command, _)) => {
-                                print!(" Command {:?}", command);
-                            }
-                            Err(_) => {
-                                print!(" Command: Failed to decode");
-                            }
-                        }
-                    } else {
-                        print!(" No payload");
-                    }
+                mac::FrameContent::Command(command) => {
+                    print!(" Command {:?}", command);
                 }
             }
             println!("");
@@ -127,20 +115,6 @@ fn parse_packet(packet: &[u8]) {
                 }
                 mac::DecodeError::InvalidAddressMode(_) => {
                     println!("Invalid Address Mode");
-                }
-                mac::DecodeError::AddressModeNotSupported(am) => {
-                    println!("AddressModeNotSupported");
-                    match am {
-                        mac::AddressMode::None => {
-                            println!("Address Mode: None");
-                        }
-                        mac::AddressMode::Short => {
-                            println!("Address Mode: Short");
-                        }
-                        mac::AddressMode::Extended => {
-                            println!("Address Mode: Extended");
-                        }
-                    }
                 }
                 mac::DecodeError::InvalidFrameVersion(_) => {
                     println!("InvalidFrameVersion");
@@ -193,15 +167,11 @@ fn main() {
                                             let link_quality_indicator = data[pkt_len - 1];
                                             let pkt_len = pkt_len - 1; // Remove LQI
                                             pkt_data[..pkt_len].copy_from_slice(&data[..pkt_len]);
-                                            // Add two dummy bytes which will be decoded as FCS
-                                            pkt_data[pkt_len] = 0;
-                                            pkt_data[pkt_len + 1] = 0;
-                                            let pkt_len = pkt_len + 2; // Added FCS
                                             println!(
                                                 "## Packet {} LQI {}",
                                                 pkt_len, link_quality_indicator
                                             );
-                                            for b in &pkt_data[..(pkt_len - 2)] {
+                                            for b in &pkt_data[..pkt_len] {
                                                 print!("{:02x}", b);
                                             }
                                             println!("");

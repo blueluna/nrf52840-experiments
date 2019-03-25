@@ -1,12 +1,12 @@
 //! 802.15.4 Network Layer
 
 use ieee802154::{
-    beacon::Beacon,
     mac::{
-        Address, AddressMode, ExtendedAddress, Frame, FrameType, FrameVersion, Header, PanId,
+        beacon::Beacon,
+        command::{AssociationStatus, CapabilityInformation, Command},
+        Address, AddressMode, ExtendedAddress, Frame, FrameContent, FrameType, FrameVersion, Header, PanId,
         Security, ShortAddress, WriteFooter,
     },
-    mac_command::{AssociationStatus, CapabilityInformation, Command},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -107,7 +107,7 @@ impl NetworkLayer {
     }
 
     pub fn radio_receive(&mut self, data: &[u8]) -> bool {
-        match Frame::decode(data) {
+        match Frame::decode(data, false) {
             Ok(frame) => match frame.header.frame_type {
                 FrameType::Acknowledgement => match self.state {
                     NetworkState::Join => {
@@ -131,9 +131,6 @@ impl NetworkLayer {
     }
 
     fn build_beacon_request(&mut self, mut data: &mut [u8]) -> usize {
-        let mut payload = [0u8; 1];
-        let command = Command::BeaconRequest;
-        let size = command.encode(&mut payload);
         let frame = Frame {
             header: Header {
                 seq: self.sequence_next(),
@@ -146,14 +143,14 @@ impl NetworkLayer {
                 destination: Address::broadcast(&AddressMode::Short),
                 source: Address::None,
             },
-            payload: &payload[..size],
+            content: FrameContent::Command(Command::BeaconRequest),
+            payload: &[0u8; 0],
             footer: [0u8; 2],
         };
         frame.encode(&mut data, WriteFooter::No)
     }
 
     fn build_association_request(&mut self, mut data: &mut [u8]) -> usize {
-        let mut payload = [0u8; 2];
         let command = Command::AssociationRequest(CapabilityInformation {
             full_function_device: true,
             mains_power: true,
@@ -161,7 +158,6 @@ impl NetworkLayer {
             frame_protection: false,
             allocate_address: true,
         });
-        let size = command.encode(&mut payload);
         let frame = Frame {
             header: Header {
                 seq: self.sequence_next(),
@@ -177,16 +173,14 @@ impl NetworkLayer {
                 ),
                 source: Address::Extended(PanId::broadcast(), self.id.extended.unwrap()),
             },
-            payload: &payload[..size],
+            content: FrameContent::Command(command),
+            payload: &[0u8; 0],
             footer: [0u8; 2],
         };
         frame.encode(&mut data, WriteFooter::No)
     }
 
     fn build_data_request(&mut self, mut data: &mut [u8]) -> usize {
-        let mut payload = [0u8; 1];
-        let command = Command::DataRequest;
-        let size = command.encode(&mut payload);
         let frame = Frame {
             header: Header {
                 seq: self.sequence_next(),
@@ -205,7 +199,8 @@ impl NetworkLayer {
                     self.id.extended.unwrap(),
                 ),
             },
-            payload: &payload[..size],
+            content: FrameContent::Command(Command::DataRequest),
+            payload: &[0u8; 0],
             footer: [0u8; 2],
         };
         frame.encode(&mut data, WriteFooter::No)

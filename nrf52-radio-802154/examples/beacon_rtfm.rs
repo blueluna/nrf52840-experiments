@@ -12,29 +12,27 @@ use nrf52840_dk_bsp::hal::{gpio, prelude::*, uarte};
 use nrf52840_pac as pac;
 
 use esercom;
-use ieee802154;
+use ieee802154::mac;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
 pub fn build_beacon_request(sequence: u8, mut data: &mut [u8]) -> usize {
-    let mut payload = [0u8; 1];
-    let command = ieee802154::mac_command::Command::BeaconRequest;
-    let size = command.encode(&mut payload);
-    let frame = ieee802154::mac::Frame {
-        header: ieee802154::mac::Header {
+    let frame = mac::Frame {
+        header: mac::Header {
             seq: sequence,
-            frame_type: ieee802154::mac::FrameType::MacCommand,
-            security: ieee802154::mac::Security::None,
+            frame_type: mac::FrameType::MacCommand,
+            security: mac::Security::None,
             frame_pending: false,
             ack_request: false,
             pan_id_compress: false,
-            version: ieee802154::mac::FrameVersion::Ieee802154_2003,
-            destination: ieee802154::mac::Address::broadcast(&ieee802154::mac::AddressMode::Short),
-            source: ieee802154::mac::Address::None,
+            version: mac::FrameVersion::Ieee802154_2003,
+            destination: mac::Address::broadcast(&mac::AddressMode::Short),
+            source: mac::Address::None,
         },
-        payload: &payload[..size],
+        content: mac::FrameContent::Command(mac::command::Command::BeaconRequest),
+        payload: &[0u8; 0],
         footer: [0u8; 2],
     };
-    frame.encode(&mut data, ieee802154::mac::WriteFooter::No)
+    frame.encode(&mut data, mac::WriteFooter::No)
 }
 
 #[app(device = nrf52840_pac)]
