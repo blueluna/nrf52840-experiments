@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo -e "power on\nexit\n" >> jlink.command
+echo -e "power on\nexit\n" > jlink.command
 
 JLinkExe -CommandFile jlink.command
 JLinkGDBServer -select USB -device nRF52840_xxAA -endian little -if SWD -speed 4000 -noir -LocalhostOnly
