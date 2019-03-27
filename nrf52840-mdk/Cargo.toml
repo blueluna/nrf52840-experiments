@@ -1,0 +1,20 @@
+[package]
+name = "nrf52840-mdk"
+version = "0.0.1"
+authors = ["Erik Svensson <erik.public@gmail.com>"]
+edition = "2018"
+
+[dev-dependencies]
+nrf52840-pac = "0.6.0"
+nrf52840-hal = { git = "https://github.com/nrf-rs/nrf52-hal", branch = "master" }
+cortex-m = "0.5"
+cortex-m-rt = "0.6.5"
+cortex-m-semihosting = "0.3"
+cortex-m-rtfm = "0.4"
+panic-semihosting = "0.5"
+ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4", branch = "re-organisation" }
+nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
+
+[features]
+rt = ["nrf52840-hal/rt"]
+default = ["rt"]
