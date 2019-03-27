@@ -13,15 +13,3 @@ edition = "2018"
 nrf52840-pac = "0.6.0"
 ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4", branch = "re-organisation" }
 cortex-m-semihosting = "0.3"
-
-[dev-dependencies]
-nb = "~0.1"
-nrf52840-dk-bsp = { git = "https://github.com/nrf-rs/nrf52-hal", branch = "master" }
-nrf52840-hal = { git = "https://github.com/nrf-rs/nrf52-hal", branch = "master" }
-esercom = { path = "../esercom" }
-cortex-m = "0.5"
-cortex-m-rt = "0.6.5"
-panic-semihosting = "0.5"
-cortex-m-semihosting = "0.3"
-cortex-m-rtfm = "0.4"
-
