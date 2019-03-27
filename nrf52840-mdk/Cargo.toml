@@ -14,6 +14,7 @@ cortex-m-rtfm = "0.4"
 panic-semihosting = "0.5"
 ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4", branch = "re-organisation" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
+esercom = { path = "../esercom" }
 
 [features]
 rt = ["nrf52840-hal/rt"]

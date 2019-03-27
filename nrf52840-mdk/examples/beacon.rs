@@ -47,7 +47,6 @@ const APP: () = {
     #[init]
     fn init() {
         let p0 = device.P0.split();
-        let mut led_green = p0.p0_22.degrade().into_push_pull_output(gpio::Level::High);
         // Configure low frequency clock source
         device
             .CLOCK
@@ -66,7 +65,6 @@ const APP: () = {
             .events_hfclkstarted()
             .bit_is_clear()
         {}
-        led_green.set_low();
         // Start low frequency clock
         device.CLOCK.events_lfclkstarted.reset();
         device
