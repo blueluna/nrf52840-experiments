@@ -1,4 +1,3 @@
-
 /// Signals an error that occured while processing data
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -11,4 +10,3 @@ pub enum Error {
     /// The length check failed
     InvalidLength(usize),
 }
-

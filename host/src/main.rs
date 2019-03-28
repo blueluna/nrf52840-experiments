@@ -8,7 +8,7 @@ use serialport::prelude::*;
 use slice_deque::SliceDeque;
 
 use esercom;
-use ieee802154::mac::{beacon::{BeaconOrder}, self};
+use ieee802154::mac::{self, beacon::BeaconOrder};
 
 fn parse_packet(packet: &[u8]) {
     use mac::Address;
@@ -29,7 +29,14 @@ fn parse_packet(packet: &[u8]) {
                     print!(" TYPE: Command");
                 }
             }
-            print!("{}", if frame.header.frame_pending { " PEND" } else { "" });
+            print!(
+                "{}",
+                if frame.header.frame_pending {
+                    " PEND"
+                } else {
+                    ""
+                }
+            );
             print!("{}", if frame.header.ack_request { " ACK" } else { "" });
             print!(
                 "{}",
@@ -65,29 +72,42 @@ fn parse_packet(packet: &[u8]) {
             match frame.content {
                 mac::FrameContent::Acknowledgement => {
                     // Nothing here
-                },
+                }
                 mac::FrameContent::Beacon(beacon) => {
                     print!(" Beacon ");
                     if beacon.superframe_spec.beacon_order != BeaconOrder::OnDemand {
-                        print!("Beacon order {:?} Superframe order {:?} Final CAP slot {}",
-                                beacon.superframe_spec.beacon_order,
-                                beacon.superframe_spec.superframe_order,
-                                beacon.superframe_spec.final_cap_slot)
+                        print!(
+                            "Beacon order {:?} Superframe order {:?} Final CAP slot {}",
+                            beacon.superframe_spec.beacon_order,
+                            beacon.superframe_spec.superframe_order,
+                            beacon.superframe_spec.final_cap_slot
+                        )
                     }
-                    let coordinator = if beacon.superframe_spec.pan_coordinator { "Coordinator" } else { "Device" };
-                    let association_permit = if beacon.superframe_spec.association_permit { "Permit association" } else { "Deny association" };
+                    let coordinator = if beacon.superframe_spec.pan_coordinator {
+                        "Coordinator"
+                    } else {
+                        "Device"
+                    };
+                    let association_permit = if beacon.superframe_spec.association_permit {
+                        "Permit association"
+                    } else {
+                        "Deny association"
+                    };
                     print!("\"{}\" \"{}\"", coordinator, association_permit);
                     if beacon.superframe_spec.battery_life_extension {
                         print!("\"Battery life extension\"");
                     }
                     if beacon.guaranteed_time_slot_info.permit {
-                        print!("GTS slots {}" , beacon.guaranteed_time_slot_info.slots().len())
+                        print!(
+                            "GTS slots {}",
+                            beacon.guaranteed_time_slot_info.slots().len()
+                        )
                     }
                     print!(" Payload: ");
                     for b in frame.payload {
                         print!("{:02x}", b);
                     }
-                },
+                }
                 mac::FrameContent::Data => {
                     // TODO: Parse data at higher layer?
                     print!(" Payload: ");

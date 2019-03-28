@@ -1,7 +1,7 @@
 #![no_std]
 
-pub mod slip;
 pub mod error;
+pub mod slip;
 
 #[derive(Debug, PartialEq)]
 pub enum MessageType {
@@ -14,20 +14,19 @@ pub enum MessageType {
 }
 
 impl MessageType {
-     fn from_bits(bits: u8) -> Self {
-     	match bits {
-	      1 => MessageType::Error,
-      	      2 => MessageType::GetValue,
-      	      3 => MessageType::SetValue,
-      	      4 => MessageType::RadioReceive,
-      	      5 => MessageType::RadioSend,
-	      _ => MessageType::None,
-	}
-     }
+    fn from_bits(bits: u8) -> Self {
+        match bits {
+            1 => MessageType::Error,
+            2 => MessageType::GetValue,
+            3 => MessageType::SetValue,
+            4 => MessageType::RadioReceive,
+            5 => MessageType::RadioSend,
+            _ => MessageType::None,
+        }
+    }
 }
 
-pub fn com_encode(mt: MessageType, input: &[u8], output: &mut [u8]) -> Result<usize, error::Error>
-{
+pub fn com_encode(mt: MessageType, input: &[u8], output: &mut [u8]) -> Result<usize, error::Error> {
     if input.len() > 128 {
         return Err(error::Error::NotEnoughBytes);
     }
@@ -41,8 +40,10 @@ pub fn com_encode(mt: MessageType, input: &[u8], output: &mut [u8]) -> Result<us
     Ok(out_size)
 }
 
-pub fn com_decode(input: &[u8], output: &mut [u8]) -> Result<(MessageType, usize, usize), error::Error>
-{
+pub fn com_decode(
+    input: &[u8],
+    output: &mut [u8],
+) -> Result<(MessageType, usize, usize), error::Error> {
     let mut buf = [0u8; 256];
     let (in_size, out_size) = slip::decode(input, &mut buf)?;
     if out_size < 2 || out_size != (buf[0] as usize) {
@@ -53,7 +54,6 @@ pub fn com_decode(input: &[u8], output: &mut [u8]) -> Result<(MessageType, usize
     output[..length].copy_from_slice(&buf[2..out_size]);
     Ok((mt, in_size, length))
 }
-
 
 #[cfg(test)]
 mod tests {

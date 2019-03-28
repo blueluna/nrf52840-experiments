@@ -118,8 +118,7 @@ impl NetworkLayer {
                 }
                 _ => false,
             }
-        }
-        else {
+        } else {
             false
         }
     }
@@ -133,21 +132,21 @@ impl NetworkLayer {
                         Address::Short(_, dst) => {
                             if let Some(address) = self.id.short {
                                 address == dst
-                            }
-                            else {
+                            } else {
                                 false
                             }
-                        },
+                        }
                         Address::Extended(_, dst) => {
                             if let Some(address) = self.id.extended {
                                 address == dst
-                            }
-                            else {
+                            } else {
                                 false
                             }
                         }
                     }
-                } else { false };
+                } else {
+                    false
+                };
                 let pending_tx = match frame.header.frame_type {
                     FrameType::Acknowledgement => self.handle_acknowledge(&frame),
                     FrameType::Beacon => self.handle_beacon(&frame),
@@ -156,7 +155,7 @@ impl NetworkLayer {
                 };
                 self.last_header = frame.header;
                 pending_tx || self.pending_acknowledge
-            },
+            }
             Err(_) => false,
         }
     }
@@ -267,8 +266,7 @@ impl NetworkLayer {
     pub fn build_packet(&mut self, mut data: &mut [u8]) -> usize {
         if self.pending_acknowledge {
             self.build_acknowledge(&mut data)
-        }
-        else {
+        } else {
             match self.state {
                 NetworkState::Orphan => self.build_beacon_request(&mut data),
                 NetworkState::Join => self.build_association_request(&mut data),

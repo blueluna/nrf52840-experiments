@@ -12,8 +12,8 @@ use nrf52840_hal::{gpio, prelude::*};
 use nrf52840_pac as pac;
 
 use ieee802154::mac;
-use ieee802154::mac::{FrameContent};
-use ieee802154::mac::command::{Command};
+use ieee802154::mac::command::Command;
+use ieee802154::mac::FrameContent;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
 pub fn build_beacon_request(sequence: u8, mut data: &mut [u8]) -> usize {
@@ -131,48 +131,46 @@ const APP: () = {
                 Ok(frame) => match frame.content {
                     FrameContent::Acknowledgement => {
                         hprintln!("Acknowledge").unwrap();
-                    },
+                    }
                     FrameContent::Beacon(_) => {
                         hprintln!("Beacon").unwrap();
                     }
                     FrameContent::Data => {
                         hprintln!("Data").unwrap();
-                    },
-                    FrameContent::Command(command) => {
-                        match command {
-                            Command::AssociationRequest(_) => {
-                                hprintln!("AssociationRequest").unwrap();
-                            },
-                            Command::AssociationResponse(_, _) => {
-                                hprintln!("AssociationResponse").unwrap();
-                            },
-                            Command::DisassociationNotification(_) => {
-                                hprintln!("DisassociationNotification").unwrap();
-                            },
-                            Command::DataRequest => {
-                                hprintln!("DataRequest").unwrap();
-                            },
-                            Command::PanIdConflictNotification => {
-                                hprintln!("PanIdConflictNotification").unwrap();
-                            },
-                            Command::OrphanNotification => {
-                                hprintln!("OrphanNotification").unwrap();
-                            },
-                            Command::BeaconRequest => {
-                                hprintln!("BeaconRequest").unwrap();
-                            },
-                            Command::CoordinatorRealignment(_) => {
-                                hprintln!("CoordinatorRealignment").unwrap();
-                            },
-                            Command::GuaranteedTimeSlotRequest(_) => {
-                                hprintln!("GuaranteedTimeSlotRequest").unwrap();
-                            },
+                    }
+                    FrameContent::Command(command) => match command {
+                        Command::AssociationRequest(_) => {
+                            hprintln!("AssociationRequest").unwrap();
+                        }
+                        Command::AssociationResponse(_, _) => {
+                            hprintln!("AssociationResponse").unwrap();
+                        }
+                        Command::DisassociationNotification(_) => {
+                            hprintln!("DisassociationNotification").unwrap();
+                        }
+                        Command::DataRequest => {
+                            hprintln!("DataRequest").unwrap();
+                        }
+                        Command::PanIdConflictNotification => {
+                            hprintln!("PanIdConflictNotification").unwrap();
+                        }
+                        Command::OrphanNotification => {
+                            hprintln!("OrphanNotification").unwrap();
+                        }
+                        Command::BeaconRequest => {
+                            hprintln!("BeaconRequest").unwrap();
+                        }
+                        Command::CoordinatorRealignment(_) => {
+                            hprintln!("CoordinatorRealignment").unwrap();
+                        }
+                        Command::GuaranteedTimeSlotRequest(_) => {
+                            hprintln!("GuaranteedTimeSlotRequest").unwrap();
                         }
                     },
                 },
                 Err(_) => {
                     hprintln!("Failed to decode frame").unwrap();
-                },
+                }
             }
             (*resources.LED_RED).set_low();
         }
