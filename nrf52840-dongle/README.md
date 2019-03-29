@@ -2,7 +2,7 @@
 
 ## Debug
 
-A J-Link EDU is úsed to develop this software. The SWD interface is used.
+A J-Link EDU is used to develop this software. The SWD interface is used.
 
 
 ```text

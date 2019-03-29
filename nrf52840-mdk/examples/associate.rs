@@ -7,7 +7,12 @@ use panic_semihosting;
 use cortex_m_semihosting::hprintln;
 use rtfm::app;
 
-use nrf52840_hal::{gpio, prelude::*, uarte};
+use nrf52840_hal::{
+    clocks,
+    gpio,
+    prelude::*,
+    uarte
+    };
 
 use nrf52840_pac as pac;
 
@@ -31,37 +36,13 @@ const APP: () = {
     #[init]
     fn init() {
         let p0 = device.P0.split();
-        // Configure low frequency clock source
-        device
+        // Configure to use external clocks, and start them
+        let _clocks = device
             .CLOCK
-            .lfclksrc
-            .write(|w| w.src().xtal().external().disabled().bypass().disabled());
-        // Start high frequency clock
-        device.CLOCK.events_hfclkstarted.reset();
-        device
-            .CLOCK
-            .tasks_hfclkstart
-            .write(|w| w.tasks_hfclkstart().set_bit());
-        while device
-            .CLOCK
-            .events_hfclkstarted
-            .read()
-            .events_hfclkstarted()
-            .bit_is_clear()
-        {}
-        // Start low frequency clock
-        device.CLOCK.events_lfclkstarted.reset();
-        device
-            .CLOCK
-            .tasks_lfclkstart
-            .write(|w| w.tasks_lfclkstart().set_bit());
-        while device
-            .CLOCK
-            .events_lfclkstarted
-            .read()
-            .events_lfclkstarted()
-            .bit_is_clear()
-        {}
+            .constrain()
+            .enable_ext_hfosc()
+            .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
+            .start_lfclk();
 
         // MAC (EUI-48) address to EUI-64
         // Add FF FE in the middle
