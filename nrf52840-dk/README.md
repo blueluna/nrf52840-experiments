@@ -16,7 +16,7 @@ $ ./jlinkgdb
 Then run the program
 
 ```
-$ cargo run --example receive_rtfm
+$ cargo run --example receive
 ```
 
 cargo will use the run definition found in `.cargo/config` to launch `gdb` with
@@ -24,7 +24,7 @@ the `jlink.gdb` script file.
 
 ## Receive only
 
-Use the `receive_rtfm` example to do recive only. The recieve only code is
+Use the `receive` example to do recive only. The recieve only code is
 fairly stable.
 
 ## Send beacon
@@ -33,7 +33,7 @@ The `beacon_rtfm` example will try to send a beacon request every thirty
 seconds.
 
 ```
-$ cargo run --example beacon_rtfm
+$ cargo run --example beacon
 ```
 
 ## PAN Association
@@ -56,12 +56,14 @@ packets with the goal to associate with a PAN.
      |                             |
      | <-- association response -- |
      |                             |
+     | ------- acknowledge ------> |
+     |                             |
 ```
 
 Note that the coordinator must permit new associations to the PAN.
 
 ```
-$ cargo run --example associate_rtfm
+$ cargo run --example associate
 ```
 
 [JLinkGDBServer]:https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/
