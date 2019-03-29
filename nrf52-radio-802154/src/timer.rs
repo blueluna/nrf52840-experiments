@@ -5,6 +5,7 @@ pub trait Timer {
     fn fire_at(&mut self, id: usize, at: u32);
     fn stop(&mut self, id: usize);
     fn now(&self) -> u32;
+    fn ack_compare_event(&mut self, id: usize);
 }
 
 macro_rules! impl_timer {
@@ -71,6 +72,10 @@ macro_rules! impl_timer {
             fn now(&self) -> u32 {
                 self.tasks_capture[0].write(|w| w.tasks_capture().set_bit());
                 self.cc[0].read().bits()
+            }
+
+            fn ack_compare_event(&mut self, id: usize) {
+                self.events_compare[id].reset();
             }
         }
     };

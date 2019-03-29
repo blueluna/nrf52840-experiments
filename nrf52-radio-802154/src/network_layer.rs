@@ -9,6 +9,7 @@ use ieee802154::mac::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NetworkState {
     Orphan,
+    ActiveScan,
     Join,
     QueryStatus,
     Associated,
@@ -76,7 +77,7 @@ impl NetworkLayer {
         if let FrameContent::Beacon(beacon) = &frame.content {
             if beacon.superframe_spec.pan_coordinator && beacon.superframe_spec.association_permit {
                 match self.state {
-                    NetworkState::Orphan => {
+                    NetworkState::ActiveScan => {
                         self.coordinator_id.id = Some(src_id);
                         self.coordinator_id.short = Some(src_short);
                         self.state = NetworkState::Join;
@@ -209,7 +210,8 @@ impl NetworkLayer {
             payload: &[],
             footer: [0u8; 2],
         };
-        (frame.encode(&mut data, WriteFooter::No), 30000000)
+        self.state = NetworkState::ActiveScan;
+        (frame.encode(&mut data, WriteFooter::No), 1000000)
     }
 
     fn build_association_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
@@ -275,6 +277,7 @@ impl NetworkLayer {
         } else {
             match self.state {
                 NetworkState::Orphan => self.build_beacon_request(&mut data),
+                NetworkState::ActiveScan => { self.state = NetworkState::Orphan; (0, 29000000) },
                 NetworkState::Join => self.build_association_request(&mut data),
                 NetworkState::QueryStatus => self.build_data_request(&mut data),
                 NetworkState::Associated => (0, 0),

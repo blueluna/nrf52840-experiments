@@ -101,15 +101,20 @@ const APP: () = {
 
         (*resources.LED_1).set_low();
 
+        timer.ack_compare_event(1);
+
         match network.state() {
             NetworkState::Orphan => {
-                hprintln!("Search").unwrap();
+                hprintln!("Orphan, beacon query").unwrap();
+            }
+            NetworkState::ActiveScan => {
+                hprintln!("Orphan, no PAN found").unwrap();
             }
             NetworkState::Join => {
-                hprintln!("Join network").unwrap();
+                hprintln!("Associate with PAN").unwrap();
             }
             NetworkState::QueryStatus => {
-                hprintln!("Query status").unwrap();
+                hprintln!("Query association status").unwrap();
             }
             NetworkState::Associated => {
                 hprintln!("Associated").unwrap();
