@@ -19,6 +19,6 @@ cortex-m-rt = "0.6.5"
 panic-semihosting = "0.5"
 cortex-m-semihosting = "0.3"
 cortex-m-rtfm = "0.4"
-ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4", branch = "re-organisation" }
+ieee802154 = { git = "https://github.com/braun-robotics/rust-ieee802.15.4", branch = "master" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 
