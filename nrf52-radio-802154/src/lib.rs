@@ -4,5 +4,6 @@
 
 pub mod network_layer;
 pub mod radio;
+pub mod timer;
 
 pub use network_layer::NetworkLayer;

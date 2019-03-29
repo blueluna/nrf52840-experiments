@@ -67,11 +67,11 @@ impl NetworkLayer {
         }
     }
 
-    fn handle_beacon(&mut self, frame: &Frame) -> bool {
+    fn handle_beacon(&mut self, frame: &Frame) -> u32 {
         let (src_id, src_short) = if let Address::Short(id, short) = frame.header.source {
             (id, short)
         } else {
-            return false;
+            return 0;
         };
         if let FrameContent::Beacon(beacon) = &frame.content {
             if beacon.superframe_spec.pan_coordinator && beacon.superframe_spec.association_permit {
@@ -85,10 +85,10 @@ impl NetworkLayer {
                 }
             }
         }
-        false
+        0
     }
 
-    fn handle_mac_command(&mut self, frame: &Frame) -> bool {
+    fn handle_mac_command(&mut self, frame: &Frame) -> u32 {
         if let FrameContent::Command(command) = &frame.content {
             match command {
                 Command::AssociationResponse(addr, status) => {
@@ -106,24 +106,24 @@ impl NetworkLayer {
                 _ => {}
             }
         }
-        false
+        0
     }
 
-    fn handle_acknowledge(&mut self, frame: &Frame) -> bool {
+    fn handle_acknowledge(&mut self, frame: &Frame) -> u32 {
         if frame.header.seq == self.sequence {
             match self.state {
                 NetworkState::Join => {
                     self.state = NetworkState::QueryStatus;
-                    true
+                    10
                 }
-                _ => false,
+                _ => 0,
             }
         } else {
-            false
+            0
         }
     }
 
-    pub fn radio_receive(&mut self, data: &[u8]) -> bool {
+    pub fn radio_receive(&mut self, data: &[u8]) -> u32 {
         match Frame::decode(data, false) {
             Ok(frame) => {
                 self.pending_acknowledge = if frame.header.ack_request {
@@ -150,13 +150,18 @@ impl NetworkLayer {
                 let pending_tx = match frame.header.frame_type {
                     FrameType::Acknowledgement => self.handle_acknowledge(&frame),
                     FrameType::Beacon => self.handle_beacon(&frame),
-                    FrameType::Data => false,
+                    FrameType::Data => 0,
                     FrameType::MacCommand => self.handle_mac_command(&frame),
                 };
                 self.last_header = frame.header;
-                pending_tx || self.pending_acknowledge
+                if self.pending_acknowledge {
+                    5 // send ack after 5 us
+                }
+                else {
+                    pending_tx
+                }
             }
-            Err(_) => false,
+            Err(_) => 0,
         }
     }
 
@@ -165,7 +170,7 @@ impl NetworkLayer {
         (*self).sequence
     }
 
-    fn build_acknowledge(&mut self, mut data: &mut [u8]) -> usize {
+    fn build_acknowledge(&mut self, mut data: &mut [u8]) -> (usize, u32) {
         // Using immediate acknowledge frame
         let frame = Frame {
             header: Header {
@@ -184,10 +189,10 @@ impl NetworkLayer {
             footer: [0u8; 2],
         };
         self.pending_acknowledge = false;
-        frame.encode(&mut data, WriteFooter::No)
+        (frame.encode(&mut data, WriteFooter::No), 0)
     }
 
-    fn build_beacon_request(&mut self, mut data: &mut [u8]) -> usize {
+    fn build_beacon_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
         let frame = Frame {
             header: Header {
                 seq: self.sequence_next(),
@@ -204,10 +209,10 @@ impl NetworkLayer {
             payload: &[],
             footer: [0u8; 2],
         };
-        frame.encode(&mut data, WriteFooter::No)
+        (frame.encode(&mut data, WriteFooter::No), 30000000)
     }
 
-    fn build_association_request(&mut self, mut data: &mut [u8]) -> usize {
+    fn build_association_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
         let command = Command::AssociationRequest(CapabilityInformation {
             full_function_device: true,
             mains_power: true,
@@ -234,10 +239,10 @@ impl NetworkLayer {
             payload: &[],
             footer: [0u8; 2],
         };
-        frame.encode(&mut data, WriteFooter::No)
+        (frame.encode(&mut data, WriteFooter::No), 1000000)
     }
 
-    fn build_data_request(&mut self, mut data: &mut [u8]) -> usize {
+    fn build_data_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
         let frame = Frame {
             header: Header {
                 seq: self.sequence_next(),
@@ -260,10 +265,11 @@ impl NetworkLayer {
             payload: &[0u8; 0],
             footer: [0u8; 2],
         };
-        frame.encode(&mut data, WriteFooter::No)
+        (frame.encode(&mut data, WriteFooter::No), 1000000)
     }
 
-    pub fn build_packet(&mut self, mut data: &mut [u8]) -> usize {
+
+    pub fn build_packet(&mut self, mut data: &mut [u8]) -> (usize, u32) {
         if self.pending_acknowledge {
             self.build_acknowledge(&mut data)
         } else {
@@ -271,7 +277,7 @@ impl NetworkLayer {
                 NetworkState::Orphan => self.build_beacon_request(&mut data),
                 NetworkState::Join => self.build_association_request(&mut data),
                 NetworkState::QueryStatus => self.build_data_request(&mut data),
-                NetworkState::Associated => 0,
+                NetworkState::Associated => (0, 0),
             }
         }
     }

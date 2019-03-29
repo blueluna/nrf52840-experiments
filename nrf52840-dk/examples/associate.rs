@@ -17,11 +17,12 @@ use nrf52_radio_802154::{
     network_layer::NetworkState,
     radio::{Radio, MAX_PACKET_LENGHT},
     NetworkLayer,
+    timer::Timer,
 };
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
-    static mut BEACON_TIMER: pac::TIMER1 = ();
+    static mut TIMER: pac::TIMER1 = ();
     static mut LED_1: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut LED_2: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut RADIO: Radio = ();
@@ -53,15 +54,9 @@ const APP: () = {
             | 0x000000fffe000000u64;
         let extended_address = ExtendedAddress(extended_address);
 
-        // Configure timer1 to generate a interrupt every second
-        let timer1 = device.TIMER1;
-        timer1.mode.write(|w| w.mode().timer());
-        timer1.bitmode.write(|w| w.bitmode()._32bit());
-        timer1.prescaler.write(|w| unsafe { w.prescaler().bits(4) });
-        timer1.cc[0].write(|w| unsafe { w.bits(10000000) });
-        timer1.shorts.write(|w| w.compare0_stop().enabled());
-        timer1.intenset.write(|w| w.compare0().set_bit());
-        timer1.tasks_start.write(|w| w.tasks_start().set_bit());
+        let mut timer1 = device.TIMER1;
+        timer1.init();
+        timer1.fire_at(1, 30000000);
 
         let uarte0 = device.UARTE0.constrain(
             uarte::Pins {
@@ -86,7 +81,7 @@ const APP: () = {
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
-        BEACON_TIMER = timer1;
+        TIMER = timer1;
         LED_1 = pins
             .p0_13
             .degrade()
@@ -97,28 +92,21 @@ const APP: () = {
         NETWORK = NetworkLayer::new(extended_address);
     }
 
-    #[interrupt(resources = [BEACON_TIMER, LED_1, NETWORK, RADIO],)]
+    #[interrupt(resources = [LED_1, NETWORK, RADIO, TIMER],)]
     fn TIMER1() {
-        let timer = resources.BEACON_TIMER;
-        // Clear event and restart
-        timer.events_compare[0].write(|w| w.events_compare().clear_bit());
-        timer.tasks_clear.write(|w| w.tasks_clear().set_bit());
-        timer.tasks_start.write(|w| w.tasks_start().set_bit());
-        (*resources.LED_1).set_low();
-
+        let mut timer = resources.TIMER;
         let mut network = resources.NETWORK;
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
+
+        (*resources.LED_1).set_low();
+
         match network.state() {
             NetworkState::Orphan => {
                 hprintln!("Search").unwrap();
-                let size = network.build_packet(&mut packet);
-                let _used = radio.queue_transmission(&mut packet[..size]);
             }
             NetworkState::Join => {
                 hprintln!("Join network").unwrap();
-                let size = network.build_packet(&mut packet);
-                let _used = radio.queue_transmission(&mut packet[..size]);
             }
             NetworkState::QueryStatus => {
                 hprintln!("Query status").unwrap();
@@ -127,29 +115,34 @@ const APP: () = {
                 hprintln!("Associated").unwrap();
             }
         }
+
+        let (size, fire_at) = network.build_packet(&mut packet);
+        if size > 0 {
+            let _used = radio.queue_transmission(&mut packet[..size]);
+        }
+        if fire_at > 0 {
+            timer.fire_at(1, fire_at);
+        }
     }
 
-    #[interrupt(resources = [LED_1, LED_2, NETWORK, RADIO, UARTE],)]
+    #[interrupt(resources = [LED_1, LED_2, NETWORK, RADIO, TIMER, UARTE],)]
     fn RADIO() {
+        let mut timer = resources.TIMER;
         let uarte = resources.UARTE;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let mut radio = resources.RADIO;
         let mut network = resources.NETWORK;
+        
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
+        
         let packet_len = radio.receive(&mut packet);
-        let respond = if packet_len > 0 {
-            network.radio_receive(&packet[1..(packet_len - 1)])
-        } else {
-            false
-        };
-        if respond {
-            let mut tx_packet = [0u8; MAX_PACKET_LENGHT as usize];
-            let tx_size = network.build_packet(&mut tx_packet);
-            let _used = radio.queue_transmission(&mut tx_packet[..tx_size]);
-        }
         if packet_len > 0 {
+            let fire_at = network.radio_receive(&packet[1..(packet_len - 1)]);
+            if fire_at > 0 {
+                timer.fire_at(1, fire_at);
+            }
             match esercom::com_encode(
                 esercom::MessageType::RadioReceive,
                 &packet[1..packet_len],
