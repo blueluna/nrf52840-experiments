@@ -7,7 +7,7 @@ use panic_semihosting;
 use cortex_m_semihosting::hprintln;
 use rtfm::app;
 
-use nrf52840_hal::{gpio, prelude::*};
+use nrf52840_hal::{clocks, gpio, prelude::*};
 
 use nrf52840_pac as pac;
 

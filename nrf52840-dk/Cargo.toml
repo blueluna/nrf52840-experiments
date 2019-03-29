@@ -12,7 +12,6 @@ edition = "2018"
 [dev-dependencies]
 nb = "~0.1"
 nrf52840-pac = "0.6.0"
-nrf52840-dk-bsp = { git = "https://github.com/nrf-rs/nrf52-hal", branch = "master" }
 nrf52840-hal = { git = "https://github.com/nrf-rs/nrf52-hal", branch = "master" }
 esercom = { path = "../esercom" }
 cortex-m = "0.5"
