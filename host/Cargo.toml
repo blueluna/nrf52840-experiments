@@ -10,6 +10,7 @@ byteorder = { version = "1", default-features = false }
 slice-deque = "0.1.16"
 ieee802154 = { git = "https://github.com/braun-robotics/rust-ieee802.15.4", branch = "master" }
 esercom = { path = "../esercom" }
+zigbee-rs = { git = "https://github.com/blueluna/zigbee-rs", branch="master" }
 
 [dependencies.serialport]
 version = "3.2"

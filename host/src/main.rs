@@ -9,6 +9,7 @@ use slice_deque::SliceDeque;
 
 use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
+use zigbee_rs::{nwk::frame::NPDUFrame, serde::Serde};
 
 fn parse_packet(packet: &[u8]) {
     use mac::Address;
@@ -113,6 +114,13 @@ fn parse_packet(packet: &[u8]) {
                     print!(" Payload: ");
                     for b in frame.payload {
                         print!("{:02x}", b);
+                    }
+                    match NPDUFrame::deserialize(frame.payload) {
+                        Ok(npdu) => {
+                            println!("");
+                            print!("{:?} ", npdu.control);
+                        }
+                        Err(_) => print!("Failed to decode NPDU"),
                     }
                 }
                 mac::FrameContent::Command(command) => {
