@@ -108,6 +108,13 @@ fn parse_packet(packet: &[u8]) {
                     for b in frame.payload {
                         print!("{:02x}", b);
                     }
+                    match NPDUFrame::deserialize(frame.payload) {
+                        Ok(npdu) => {
+                            println!("");
+                            print!("{:?} ", npdu.control);
+                        }
+                        Err(_) => print!("Failed to decode NPDU"),
+                    }
                 }
                 mac::FrameContent::Data => {
                     // TODO: Parse data at higher layer?
@@ -119,6 +126,36 @@ fn parse_packet(packet: &[u8]) {
                         Ok(npdu) => {
                             println!("");
                             print!("{:?} ", npdu.control);
+                            print!(
+                                "DST {:02x}{:02x} ",
+                                npdu.destination_address[0], npdu.destination_address[1]
+                            );
+                            print!(
+                                "SRC {:02x}{:02x} ",
+                                npdu.source_address[0], npdu.source_address[1]
+                            );
+                            print!("RAD {} ", npdu.radius);
+                            print!("SEQ {} ", npdu.sequence_number);
+                            if let Some(dst) = npdu.destination_ieee_address {
+                                print!("DST ");
+                                for b in &dst {
+                                    print!("{:02x}", b);
+                                }
+                                print!(" ");
+                            }
+                            if let Some(src) = npdu.source_ieee_address {
+                                print!("SRC ");
+                                for b in &src {
+                                    print!("{:02x}", b);
+                                }
+                                print!(" ");
+                            }
+                            if let Some(mc) = npdu.multicast_control {
+                                print!("MC {} ", mc);
+                            }
+                            if let Some(srf) = npdu.source_route_frame {
+                                print!("SRF {:?} ", srf);
+                            }
                         }
                         Err(_) => print!("Failed to decode NPDU"),
                     }
@@ -204,6 +241,16 @@ fn main() {
                                             }
                                             println!("");
                                             parse_packet(&pkt_data[..pkt_len]);
+                                        }
+                                        esercom::MessageType::EnergyDetect => {
+                                            if written == 2 {
+                                                let channel = data[0];
+                                                let energy_level = data[1];
+                                                println!(
+                                                    "## Energy on channel {}: {}",
+                                                    channel, energy_level
+                                                );
+                                            }
                                         }
                                         _ => println!("Other packet {:?}", msg),
                                     }

@@ -156,9 +156,8 @@ impl NetworkLayer {
                 };
                 self.last_header = frame.header;
                 if self.pending_acknowledge {
-                    5 // send ack after 5 us
-                }
-                else {
+                    10 // send ack after 10 us
+                } else {
                     pending_tx
                 }
             }
@@ -171,8 +170,21 @@ impl NetworkLayer {
         (*self).sequence
     }
 
+    /// Build a Imm-Ack frame
     fn build_acknowledge(&mut self, mut data: &mut [u8]) -> (usize, u32) {
-        // Using immediate acknowledge frame
+        // IEEE 802.15.4-2015 chapter 7.3.3
+        //
+        // +-------------+--------+---------+-------------+----------+----------+
+        // | Destination | Source | Pending | Acknowledge | Compress | Security |
+        // +-------------+--------+---------+-------------+----------+----------+
+        // | None        | None   | 1       | false       | false    | false    |
+        // +-------------+--------+---------+-------------+----------+----------+
+        //
+        // 1. If this is a response to a data reuqest frame, this is set to true
+        //    if there is data pending, otherwise false.
+        //
+        // No payload
+        //
         let frame = Frame {
             header: Header {
                 seq: self.last_header.seq,
@@ -193,7 +205,24 @@ impl NetworkLayer {
         (frame.encode(&mut data, WriteFooter::No), 0)
     }
 
+    /// Build a beacon request frame
     fn build_beacon_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
+        // IEEE 802.15.4-2015 chapter 7.5.8
+        //
+        // +-------------+--------+---------+-------------+----------+----------+
+        // | Destination | Source | Pending | Acknowledge | Compress | Security |
+        // +-------------+--------+---------+-------------+----------+----------+
+        // | Short       | None   | false   | false       | false    | false    |
+        // +-------------+--------+---------+-------------+----------+----------+
+        //
+        // +------------+------------+-------------+-----------+
+        // | Dst PAN Id | Src PAN Id | Destination | Source    |
+        // +------------+------------+-------------+-----------+
+        // | Broadcast  |            | Broadcast   |           |
+        // +------------+------------+-------------+-----------+
+        //
+        // No payload
+        //
         let frame = Frame {
             header: Header {
                 seq: self.sequence_next(),
@@ -270,14 +299,16 @@ impl NetworkLayer {
         (frame.encode(&mut data, WriteFooter::No), 1000000)
     }
 
-
     pub fn build_packet(&mut self, mut data: &mut [u8]) -> (usize, u32) {
         if self.pending_acknowledge {
             self.build_acknowledge(&mut data)
         } else {
             match self.state {
                 NetworkState::Orphan => self.build_beacon_request(&mut data),
-                NetworkState::ActiveScan => { self.state = NetworkState::Orphan; (0, 29000000) },
+                NetworkState::ActiveScan => {
+                    self.state = NetworkState::Orphan;
+                    (0, 29000000)
+                }
                 NetworkState::Join => self.build_association_request(&mut data),
                 NetworkState::QueryStatus => self.build_data_request(&mut data),
                 NetworkState::Associated => (0, 0),

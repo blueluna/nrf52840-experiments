@@ -16,8 +16,8 @@ use ieee802154::mac::ExtendedAddress;
 use nrf52_radio_802154::{
     network_layer::NetworkState,
     radio::{Radio, MAX_PACKET_LENGHT},
-    NetworkLayer,
     timer::Timer,
+    NetworkLayer,
 };
 
 #[app(device = nrf52840_pac)]
@@ -124,10 +124,10 @@ const APP: () = {
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let mut radio = resources.RADIO;
         let mut network = resources.NETWORK;
-        
+
         (*resources.LED_BLUE).set_high();
         (*resources.LED_RED).set_high();
-        
+
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
             let fire_at = network.radio_receive(&packet[1..(packet_len - 1)]);
