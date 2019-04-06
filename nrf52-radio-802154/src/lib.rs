@@ -2,8 +2,8 @@
 
 #![no_std]
 
-pub mod network_layer;
 pub mod radio;
 pub mod timer;
+pub mod mac;
 
-pub use network_layer::NetworkLayer;
+pub use mac::service::Service;

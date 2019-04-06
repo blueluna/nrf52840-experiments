@@ -1,4 +1,4 @@
-//! 802.15.4 Network Layer
+//! 802.15.4 MAC services
 
 use ieee802154::mac::{
     command::{AssociationStatus, CapabilityInformation, Command},
@@ -7,7 +7,7 @@ use ieee802154::mac::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum NetworkState {
+pub enum State {
     Orphan,
     ActiveScan,
     Join,
@@ -16,15 +16,15 @@ pub enum NetworkState {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct NetworkIdentity {
+pub struct Identity {
     pub id: Option<PanId>,
     pub short: Option<ShortAddress>,
     pub extended: Option<ExtendedAddress>,
 }
 
-impl NetworkIdentity {
+impl Identity {
     fn new() -> Self {
-        NetworkIdentity {
+        Identity {
             id: None,
             short: None,
             extended: None,
@@ -32,28 +32,28 @@ impl NetworkIdentity {
     }
 }
 
-pub struct NetworkLayer {
-    state: NetworkState,
+pub struct Service {
+    state: State,
     sequence: u8,
     pending_acknowledge: bool,
-    id: NetworkIdentity,
-    coordinator_id: NetworkIdentity,
+    id: Identity,
+    coordinator_id: Identity,
     last_header: Header,
 }
 
-impl NetworkLayer {
+impl Service {
     pub fn new(extended: ExtendedAddress) -> Self {
-        let id = NetworkIdentity {
+        let id = Identity {
             id: None,
             short: None,
             extended: Some(extended),
         };
-        NetworkLayer {
-            state: NetworkState::Orphan,
+        Service {
+            state: State::Orphan,
             sequence: 0,
             pending_acknowledge: false,
             id,
-            coordinator_id: NetworkIdentity::new(),
+            coordinator_id: Identity::new(),
             last_header: Header {
                 seq: 0,
                 frame_type: FrameType::Acknowledgement,
@@ -77,10 +77,10 @@ impl NetworkLayer {
         if let FrameContent::Beacon(beacon) = &frame.content {
             if beacon.superframe_spec.pan_coordinator && beacon.superframe_spec.association_permit {
                 match self.state {
-                    NetworkState::ActiveScan => {
+                    State::ActiveScan => {
                         self.coordinator_id.id = Some(src_id);
                         self.coordinator_id.short = Some(src_short);
-                        self.state = NetworkState::Join;
+                        self.state = State::Join;
                     }
                     _ => (),
                 }
@@ -95,10 +95,10 @@ impl NetworkLayer {
                 Command::AssociationResponse(addr, status) => {
                     if *status == AssociationStatus::Successful {
                         match self.state {
-                            NetworkState::QueryStatus => {
+                            State::QueryStatus => {
                                 self.id.id = frame.header.source.pan_id();
                                 self.id.short = Some(*addr);
-                                self.state = NetworkState::Associated;
+                                self.state = State::Associated;
                             }
                             _ => {}
                         }
@@ -113,8 +113,8 @@ impl NetworkLayer {
     fn handle_acknowledge(&mut self, frame: &Frame) -> u32 {
         if frame.header.seq == self.sequence {
             match self.state {
-                NetworkState::Join => {
-                    self.state = NetworkState::QueryStatus;
+                State::Join => {
+                    self.state = State::QueryStatus;
                     10
                 }
                 _ => 0,
@@ -239,7 +239,7 @@ impl NetworkLayer {
             payload: &[],
             footer: [0u8; 2],
         };
-        self.state = NetworkState::ActiveScan;
+        self.state = State::ActiveScan;
         (frame.encode(&mut data, WriteFooter::No), 1000000)
     }
 
@@ -304,19 +304,19 @@ impl NetworkLayer {
             self.build_acknowledge(&mut data)
         } else {
             match self.state {
-                NetworkState::Orphan => self.build_beacon_request(&mut data),
-                NetworkState::ActiveScan => {
-                    self.state = NetworkState::Orphan;
+                State::Orphan => self.build_beacon_request(&mut data),
+                State::ActiveScan => {
+                    self.state = State::Orphan;
                     (0, 29000000)
                 }
-                NetworkState::Join => self.build_association_request(&mut data),
-                NetworkState::QueryStatus => self.build_data_request(&mut data),
-                NetworkState::Associated => (0, 0),
+                State::Join => self.build_association_request(&mut data),
+                State::QueryStatus => self.build_data_request(&mut data),
+                State::Associated => (0, 0),
             }
         }
     }
 
-    pub fn state(&self) -> NetworkState {
+    pub fn state(&self) -> State {
         self.state
     }
 }
