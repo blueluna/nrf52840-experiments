@@ -1,6 +1,6 @@
 [package]
 name = "nrf52-radio-802154"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Erik Svensson <erik.public@gmail.com>"]
 categories = [ "hardware-support", "embedded", "no-std", ]
 description = "IEEE 802.15.4 mode nRF52840 radio"
@@ -8,6 +8,7 @@ keywords = [ "nrf52840", "nrf52", "ieee802154", "WPAN" ]
 license = "MIT"
 readme = "README.md"
 repository="https://github.com/blueluna/nrf52840-dk-experiments"
+documentation = "https://docs.rs/nrf52-radio-802154"
 edition = "2018"
 
 [dependencies]
