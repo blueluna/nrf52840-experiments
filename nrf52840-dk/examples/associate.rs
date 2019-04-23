@@ -99,8 +99,6 @@ const APP: () = {
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
 
-        hprintln!("time").unwrap();
-
         (*resources.LED_1).set_low();
 
         timer.ack_compare_event(1);
@@ -125,7 +123,6 @@ const APP: () = {
 
         let (size, fire_at) = service.build_packet(&mut packet);
         if size > 0 {
-            hprintln!("send").unwrap();
             let _used = radio.queue_transmission(&mut packet[..size]);
         }
         if fire_at > 0 {
@@ -149,7 +146,6 @@ const APP: () = {
         if packet_len > 0 {
             let fire_at = service.radio_receive(&packet[1..(packet_len - 1)]);
             if fire_at > 0 {
-                hprintln!("fire").unwrap();
                 timer.fire_at(1, fire_at);
             }
             match esercom::com_encode(
