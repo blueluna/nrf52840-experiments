@@ -10,6 +10,6 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-nrf52840-pac = "0.6.0"
-ieee802154 = { git = "https://github.com/braun-robotics/rust-ieee802.15.4", branch = "master" }
+nrf52840-pac = "0.6"
+ieee802154 = "0.3"
 cortex-m-semihosting = "0.3"

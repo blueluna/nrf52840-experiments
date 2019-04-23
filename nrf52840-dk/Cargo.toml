@@ -10,15 +10,14 @@ readme = "README.md"
 edition = "2018"
 
 [dev-dependencies]
-nb = "~0.1"
-nrf52840-pac = "0.6.0"
-nrf52840-hal = { git = "https://github.com/nrf-rs/nrf52-hal", branch = "master" }
-esercom = { path = "../esercom" }
-cortex-m = "0.5"
-cortex-m-rt = "0.6.5"
+nrf52840-pac = "0.6"
+nrf52840-hal = "0.8"
+cortex-m = "0.6"
+cortex-m-rt = "0.6"
 panic-semihosting = "0.5"
 cortex-m-semihosting = "0.3"
 cortex-m-rtfm = "0.4"
-ieee802154 = { git = "https://github.com/braun-robotics/rust-ieee802.15.4", branch = "master" }
+ieee802154 = "0.3"
+esercom = { path = "../esercom" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 
