@@ -332,7 +332,6 @@ impl Radio {
     /// Prepare to receive data
     pub fn receive_prepare(&mut self) {
         self.enter_disabled();
-        self.configure_interrupts();
         self.radio.shorts.reset();
         self.radio.shorts.write(|w| {
             w.rxready_start()
@@ -422,7 +421,6 @@ impl Radio {
     ///
     pub fn queue_transmission(&mut self, data: &[u8]) -> usize {
         self.enter_disabled();
-        self.configure_interrupts();
         let data_length = data.len();
         let tx_length = data_length + 2; // The radio will add FCS, two octets
         assert!(tx_length < (MAX_PACKET_LENGHT - 1) as usize);
@@ -497,6 +495,7 @@ impl Radio {
             self.radio
                 .events_edend
                 .write(|w| w.events_edend().clear_bit());
+            self.configure_interrupts();
             Some(level)
         } else {
             None
