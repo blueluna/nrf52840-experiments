@@ -5,7 +5,7 @@ authors = ["Erik Svensson <erik.public@gmail.com>"]
 edition = "2018"
 
 [dev-dependencies]
-nrf52840-pac = "0.6"
+nrf52840-pac = "0.8"
 nrf52840-hal = "0.8"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
