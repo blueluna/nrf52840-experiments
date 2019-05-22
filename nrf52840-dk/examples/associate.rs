@@ -31,7 +31,7 @@ const APP: () = {
 
     #[init]
     fn init() {
-        let pins = device.P0.split();
+        let p0 = device.P0.split();
         // Configure to use external clocks, and start them
         let _clocks = device
             .CLOCK
@@ -60,17 +60,10 @@ const APP: () = {
 
         let uarte0 = device.UARTE0.constrain(
             uarte::Pins {
-                txd: pins
-                    .p0_06
-                    .into_push_pull_output(gpio::Level::High)
-                    .degrade(),
-                rxd: pins.p0_08.into_floating_input().degrade(),
-                cts: Some(pins.p0_07.into_floating_input().degrade()),
-                rts: Some(
-                    pins.p0_05
-                        .into_push_pull_output(gpio::Level::High)
-                        .degrade(),
-                ),
+                txd: p0.p0_06.into_push_pull_output(gpio::Level::High).degrade(),
+                rxd: p0.p0_08.into_floating_input().degrade(),
+                cts: Some(p0.p0_07.into_floating_input().degrade()),
+                rts: Some(p0.p0_05.into_push_pull_output(gpio::Level::High).degrade()),
             },
             uarte::Parity::EXCLUDED,
             uarte::Baudrate::BAUD115200,
@@ -82,11 +75,8 @@ const APP: () = {
         radio.receive_prepare();
 
         TIMER = timer1;
-        LED_1 = pins
-            .p0_13
-            .degrade()
-            .into_push_pull_output(gpio::Level::High);
-        LED_2 = pins.p0_14.degrade().into_push_pull_output(gpio::Level::Low);
+        LED_1 = p0.p0_13.degrade().into_push_pull_output(gpio::Level::High);
+        LED_2 = p0.p0_14.degrade().into_push_pull_output(gpio::Level::Low);
         RADIO = radio;
         UARTE = uarte0;
         SERVICE = Service::new(extended_address);

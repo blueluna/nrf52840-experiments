@@ -23,8 +23,8 @@ use nrf52_radio_802154::{
 #[app(device = nrf52840_pac)]
 const APP: () = {
     static mut TIMER: pac::TIMER1 = ();
-    static mut LED_RED: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
-    static mut LED_BLUE: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
+    static mut LED_1: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
+    static mut LED_2: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
     static mut SERVICE: Service = ();
@@ -54,7 +54,6 @@ const APP: () = {
             | 0x000000fffe000000u64;
         let extended_address = ExtendedAddress(extended_address);
 
-        // Configure timer1 to generate a interrupt every second
         let mut timer1 = device.TIMER1;
         timer1.init();
         timer1.fire_at(1, 30000000);
@@ -76,34 +75,36 @@ const APP: () = {
         radio.receive_prepare();
 
         TIMER = timer1;
-        LED_RED = p0.p0_23.degrade().into_push_pull_output(gpio::Level::High);
-        LED_BLUE = p0.p0_24.degrade().into_push_pull_output(gpio::Level::Low);
+        LED_1 = p0.p0_24.degrade().into_push_pull_output(gpio::Level::Low);
+        LED_2 = p0.p0_23.degrade().into_push_pull_output(gpio::Level::High);
         RADIO = radio;
         UARTE = uarte0;
         SERVICE = Service::new(extended_address);
     }
 
-    #[interrupt(resources = [LED_BLUE, SERVICE, RADIO, TIMER],)]
+    #[interrupt(resources = [LED_1, SERVICE, RADIO, TIMER],)]
     fn TIMER1() {
         let mut timer = resources.TIMER;
         let mut service = resources.SERVICE;
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
 
-        (*resources.LED_BLUE).set_low();
+        (*resources.LED_1).set_low();
+
+        timer.ack_compare_event(1);
 
         match service.state() {
             MacState::Orphan => {
-                hprintln!("Search").unwrap();
+                hprintln!("Orphan, beacon query").unwrap();
             }
             MacState::ActiveScan => {
-                hprintln!("Scanning").unwrap();
+                hprintln!("Orphan, no PAN found").unwrap();
             }
             MacState::Join => {
-                hprintln!("Join service").unwrap();
+                hprintln!("Associate with PAN").unwrap();
             }
             MacState::QueryStatus => {
-                hprintln!("Query status").unwrap();
+                hprintln!("Query association status").unwrap();
             }
             MacState::Associated => {
                 hprintln!("Associated").unwrap();
@@ -119,7 +120,7 @@ const APP: () = {
         }
     }
 
-    #[interrupt(resources = [LED_BLUE, LED_RED, SERVICE, RADIO, TIMER, UARTE],)]
+    #[interrupt(resources = [LED_1, LED_2, SERVICE, RADIO, TIMER, UARTE],)]
     fn RADIO() {
         let mut timer = resources.TIMER;
         let uarte = resources.UARTE;
@@ -128,8 +129,8 @@ const APP: () = {
         let mut radio = resources.RADIO;
         let mut service = resources.SERVICE;
 
-        (*resources.LED_BLUE).set_high();
-        (*resources.LED_RED).set_high();
+        (*resources.LED_1).set_high();
+        (*resources.LED_2).set_high();
 
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
@@ -149,7 +150,7 @@ const APP: () = {
                     hprintln!("Failed to encode packet").unwrap();
                 }
             }
-            (*resources.LED_RED).set_low();
+            (*resources.LED_2).set_low();
         }
     }
 };

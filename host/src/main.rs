@@ -122,6 +122,7 @@ fn parse_packet(packet: &[u8]) {
                     for b in frame.payload {
                         print!("{:02x}", b);
                     }
+                    print!(" ");
                     match NPDUFrame::deserialize(frame.payload) {
                         Ok(npdu) => {
                             println!("");
