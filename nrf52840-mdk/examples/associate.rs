@@ -70,7 +70,7 @@ const APP: () = {
         );
 
         let mut radio = Radio::new(device.RADIO);
-        radio.set_channel(15);
+        radio.set_channel(11);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
