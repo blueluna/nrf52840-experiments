@@ -9,7 +9,13 @@ use slice_deque::SliceDeque;
 
 use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
-use zigbee_rs::{nwk::frame::NPDUFrame, serde::Serde};
+use zigbee_rs::{
+    nwk::{
+        frame::{NPDUFrame, SerdeError},
+        payload::Payload,
+    },
+    serde::Serde
+};
 
 fn parse_packet(packet: &[u8]) {
     use mac::Address;
@@ -157,8 +163,59 @@ fn parse_packet(packet: &[u8]) {
                             if let Some(srf) = npdu.source_route_frame {
                                 print!("SRF {:?} ", srf);
                             }
+                            print!("Payload: ");
+                            match npdu.payload {
+                                Payload::Data(_) => { print!("Data "); }
+                                Payload::NWKCommand(_) => { print!("Command "); }
+                                Payload::InterPan => { print!("Inter-PAN "); },
+                            }
                         }
-                        Err(_) => print!("Failed to decode NPDU"),
+                        Err(ref e) => {
+                            print!("Failed to decode NPDU, ");
+                            match e {
+                                SerdeError::NotEnoughSpace => {
+                                    print!("Not enough space");
+                                }
+                                SerdeError::WrongNumberOfBytes => {
+                                    print!("Wrong number of bytes");
+                                }
+                                SerdeError::UnknownFrameType => {
+                                    print!("Unkown frame type");
+                                }
+                                SerdeError::BrokenRelayList => {
+                                    print!("Broken relay list");
+                                }
+                                SerdeError::UnknownNWKCommand => {
+                                    print!("Unkown network command");
+                                }
+                            }
+                            if frame.payload.len() >= 2 {
+                                match zigbee_rs::nwk::frame::FrameControl::deserialize(&frame.payload[..2]) {
+                                    Ok(ref fc) => {
+                                        print!("Frame Control: {:?}", fc);
+                                    }
+                                    Err(ref e) => {
+                                        match e {
+                                            SerdeError::NotEnoughSpace => {
+                                                print!("Not enough space");
+                                            }
+                                            SerdeError::WrongNumberOfBytes => {
+                                                print!("Wrong number of bytes");
+                                            }
+                                            SerdeError::UnknownFrameType => {
+                                                print!("Unkown frame type");
+                                            }
+                                            SerdeError::BrokenRelayList => {
+                                                print!("Broken relay list");
+                                            }
+                                            SerdeError::UnknownNWKCommand => {
+                                                print!("Unkown network command");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 mac::FrameContent::Command(command) => {
