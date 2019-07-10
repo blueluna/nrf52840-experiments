@@ -171,22 +171,23 @@ fn parse_packet(packet: &[u8]) {
                             }
                         }
                         Err(ref e) => {
+                            println!("");
                             print!("Failed to decode NPDU, ");
                             match e {
                                 SerdeError::NotEnoughSpace => {
-                                    print!("Not enough space");
+                                    print!("Not enough space ");
                                 }
                                 SerdeError::WrongNumberOfBytes => {
-                                    print!("Wrong number of bytes");
+                                    print!("Wrong number of bytes ");
                                 }
                                 SerdeError::UnknownFrameType => {
-                                    print!("Unkown frame type");
+                                    print!("Unkown frame type ");
                                 }
                                 SerdeError::BrokenRelayList => {
-                                    print!("Broken relay list");
+                                    print!("Broken relay list ");
                                 }
                                 SerdeError::UnknownNWKCommand => {
-                                    print!("Unkown network command");
+                                    print!("Unkown network command ");
                                 }
                             }
                             if frame.payload.len() >= 2 {
