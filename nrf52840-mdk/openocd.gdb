@@ -5,7 +5,6 @@ set print asm-demangle on
 
 # detect unhandled exceptions, hard faults and panics
 break DefaultHandler
-break UserHardFault
 # break rust_begin_unwind
 # rbreak nrf51_ble_demo::ble::link::LinkLayer::process_adv_packet*
 
