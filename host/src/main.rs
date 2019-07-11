@@ -11,17 +11,105 @@ use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
 use zigbee_rs::{
     nwk::{
-        frame::{NPDUFrame, SerdeError},
+        frame::{NetworkFrame, SerdeError},
         payload::Payload,
     },
     serde::Serde
 };
 
+fn parse_network_frame(payload: &[u8])
+{
+    match NetworkFrame::deserialize(payload) {
+        Ok(network_frame) => {
+            print!(
+                "NWK TYPE {:?} ",
+                network_frame.control.frame_type
+            );
+            print!(
+                "VER {} ",
+                network_frame.control.protocol_version
+            );
+            print!(
+                "DR {:?} ",
+                network_frame.control.discover_route
+            );
+            print!(
+                "DST {:02x}{:02x} ",
+                network_frame.destination_address[0], network_frame.destination_address[1]
+            );
+            print!(
+                "SRC {:02x}{:02x} ",
+                network_frame.source_address[0], network_frame.source_address[1]
+            );
+            print!("RAD {} ", network_frame.radius);
+            print!("SEQ {} ", network_frame.sequence_number);
+            if let Some(dst) = network_frame.destination_ieee_address {
+                print!("DST ");
+                for b in &dst {
+                    print!("{:02x}", b);
+                }
+                print!(" ");
+            }
+            if let Some(src) = network_frame.source_ieee_address {
+                print!("SRC ");
+                for b in &src {
+                    print!("{:02x}", b);
+                }
+                print!(" ");
+            }
+            if let Some(mc) = network_frame.multicast_control {
+                print!("MC {} ", mc);
+            }
+            if let Some(srf) = network_frame.source_route_frame {
+                print!("SRF {:?} ", srf);
+            }
+            print!("Payload: ");
+            match network_frame.payload {
+                Payload::Data(payload) => {
+                    print!("Data ");
+                    for b in payload {
+                        print!("{:02x}", b);
+                    }
+                }
+                Payload::Command(_) => { print!("Command "); }
+                Payload::InterPan => { print!("Inter-PAN "); },
+                Payload::Encrypted(payload) => {
+                    print!("Encrypted ");
+                    for b in payload {
+                        print!("{:02x}", b);
+                    }
+                },
+            }
+        }
+        Err(ref e) => {
+            print!("Failed to decode network frame, ");
+            match e {
+                SerdeError::NotEnoughSpace => {
+                    print!("Not enough space");
+                }
+                SerdeError::WrongNumberOfBytes => {
+                    print!("Wrong number of bytes");
+                }
+                SerdeError::UnknownFrameType => {
+                    print!("Unkown frame type");
+                }
+                SerdeError::BrokenRelayList => {
+                    print!("Broken relay list");
+                }
+                SerdeError::UnknownNetworkCommand => {
+                    print!("Unkown network command");
+                }
+            }
+        }
+    }
+    println!("");
+}
+
 fn parse_packet(packet: &[u8]) {
     use mac::Address;
     match mac::Frame::decode(packet, false) {
         Ok(frame) => {
-            print!("Packet",);
+            print!("802.15.4");
             match frame.header.frame_type {
                 mac::FrameType::Acknowledgement => {
                     print!(" TYPE: Acknowledgement");
@@ -79,6 +167,7 @@ fn parse_packet(packet: &[u8]) {
             match frame.content {
                 mac::FrameContent::Acknowledgement => {
                     // Nothing here
+                    println!("");
                 }
                 mac::FrameContent::Beacon(beacon) => {
                     print!(" Beacon ");
@@ -110,123 +199,21 @@ fn parse_packet(packet: &[u8]) {
                             beacon.guaranteed_time_slot_info.slots().len()
                         )
                     }
-                    print!(" Payload: ");
-                    for b in frame.payload {
-                        print!("{:02x}", b);
-                    }
-                    match NPDUFrame::deserialize(frame.payload) {
-                        Ok(npdu) => {
-                            println!("");
-                            print!("{:?} ", npdu.control);
-                        }
-                        Err(_) => print!("Failed to decode NPDU"),
-                    }
+                    println!("");
+                    parse_network_frame(frame.payload);
                 }
                 mac::FrameContent::Data => {
                     // TODO: Parse data at higher layer?
-                    print!(" Payload: ");
-                    for b in frame.payload {
-                        print!("{:02x}", b);
-                    }
-                    print!(" ");
-                    match NPDUFrame::deserialize(frame.payload) {
-                        Ok(npdu) => {
-                            println!("");
-                            print!("{:?} ", npdu.control);
-                            print!(
-                                "DST {:02x}{:02x} ",
-                                npdu.destination_address[0], npdu.destination_address[1]
-                            );
-                            print!(
-                                "SRC {:02x}{:02x} ",
-                                npdu.source_address[0], npdu.source_address[1]
-                            );
-                            print!("RAD {} ", npdu.radius);
-                            print!("SEQ {} ", npdu.sequence_number);
-                            if let Some(dst) = npdu.destination_ieee_address {
-                                print!("DST ");
-                                for b in &dst {
-                                    print!("{:02x}", b);
-                                }
-                                print!(" ");
-                            }
-                            if let Some(src) = npdu.source_ieee_address {
-                                print!("SRC ");
-                                for b in &src {
-                                    print!("{:02x}", b);
-                                }
-                                print!(" ");
-                            }
-                            if let Some(mc) = npdu.multicast_control {
-                                print!("MC {} ", mc);
-                            }
-                            if let Some(srf) = npdu.source_route_frame {
-                                print!("SRF {:?} ", srf);
-                            }
-                            print!("Payload: ");
-                            match npdu.payload {
-                                Payload::Data(_) => { print!("Data "); }
-                                Payload::NWKCommand(_) => { print!("Command "); }
-                                Payload::InterPan => { print!("Inter-PAN "); },
-                            }
-                        }
-                        Err(ref e) => {
-                            println!("");
-                            print!("Failed to decode NPDU, ");
-                            match e {
-                                SerdeError::NotEnoughSpace => {
-                                    print!("Not enough space ");
-                                }
-                                SerdeError::WrongNumberOfBytes => {
-                                    print!("Wrong number of bytes ");
-                                }
-                                SerdeError::UnknownFrameType => {
-                                    print!("Unkown frame type ");
-                                }
-                                SerdeError::BrokenRelayList => {
-                                    print!("Broken relay list ");
-                                }
-                                SerdeError::UnknownNWKCommand => {
-                                    print!("Unkown network command ");
-                                }
-                            }
-                            if frame.payload.len() >= 2 {
-                                match zigbee_rs::nwk::frame::FrameControl::deserialize(&frame.payload[..2]) {
-                                    Ok(ref fc) => {
-                                        print!("Frame Control: {:?}", fc);
-                                    }
-                                    Err(ref e) => {
-                                        match e {
-                                            SerdeError::NotEnoughSpace => {
-                                                print!("Not enough space");
-                                            }
-                                            SerdeError::WrongNumberOfBytes => {
-                                                print!("Wrong number of bytes");
-                                            }
-                                            SerdeError::UnknownFrameType => {
-                                                print!("Unkown frame type");
-                                            }
-                                            SerdeError::BrokenRelayList => {
-                                                print!("Broken relay list");
-                                            }
-                                            SerdeError::UnknownNWKCommand => {
-                                                print!("Unkown network command");
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    println!("");
+                    parse_network_frame(frame.payload);
                 }
                 mac::FrameContent::Command(command) => {
-                    print!(" Command {:?}", command);
+                    println!(" Command {:?}", command);
                 }
             }
-            println!("");
         }
         Err(e) => {
-            println!("Unknown Packet");
+            print!("Unknown Packet, ");
             match e {
                 mac::DecodeError::NotEnoughBytes => {
                     println!("NotEnoughBytes");
