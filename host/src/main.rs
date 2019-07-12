@@ -99,6 +99,9 @@ fn parse_network_frame(payload: &[u8])
                 SerdeError::UnknownNetworkCommand => {
                     print!("Unkown network command");
                 }
+                SerdeError::UnknownDeliveryMode => {
+                    print!("Unkown delivery mode");
+                }
             }
         }
     }
