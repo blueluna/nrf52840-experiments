@@ -10,97 +10,65 @@ use slice_deque::SliceDeque;
 use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
 use zigbee_rs::{
-    nwk::{
-        frame::{NetworkFrame, SerdeError},
-        payload::Payload,
-    },
-    serde::Serde
+    self,
+    network::frame::{DiscoverRoute, NetworkFrame},
+    serde::SerdeVariableSize,
 };
 
-fn parse_network_frame(payload: &[u8])
-{
+fn parse_network_frame(payload: &[u8]) {
     match NetworkFrame::deserialize(payload) {
-        Ok(network_frame) => {
-            print!(
-                "NWK TYPE {:?} ",
-                network_frame.control.frame_type
-            );
-            print!(
-                "VER {} ",
-                network_frame.control.protocol_version
-            );
-            print!(
-                "DR {:?} ",
-                network_frame.control.discover_route
-            );
-            print!(
-                "DST {:02x}{:02x} ",
-                network_frame.destination_address[0], network_frame.destination_address[1]
-            );
-            print!(
-                "SRC {:02x}{:02x} ",
-                network_frame.source_address[0], network_frame.source_address[1]
-            );
+        Ok((network_frame, used)) => {
+            print!("NWK TYPE {:?} ", network_frame.control.frame_type);
+            print!("VER {} ", network_frame.control.protocol_version);
+            match network_frame.control.discover_route {
+                DiscoverRoute::EnableDiscovery => {
+                    print!("Discovery ");
+                }
+                DiscoverRoute::SurpressDiscovery => {}
+            }
+            print!("DST {} ", network_frame.destination_address);
+            print!("SRC {} ", network_frame.source_address);
             print!("RAD {} ", network_frame.radius);
             print!("SEQ {} ", network_frame.sequence_number);
             if let Some(dst) = network_frame.destination_ieee_address {
-                print!("DST ");
-                for b in &dst {
-                    print!("{:02x}", b);
-                }
-                print!(" ");
+                print!("DST {} ", dst);
             }
             if let Some(src) = network_frame.source_ieee_address {
-                print!("SRC ");
-                for b in &src {
-                    print!("{:02x}", b);
-                }
-                print!(" ");
+                print!("SRC {} ", src);
             }
             if let Some(mc) = network_frame.multicast_control {
-                print!("MC {} ", mc);
+                print!("MC {:?} ", mc);
             }
             if let Some(srf) = network_frame.source_route_frame {
                 print!("SRF {:?} ", srf);
             }
             print!("Payload: ");
-            match network_frame.payload {
-                Payload::Data(payload) => {
-                    print!("Data ");
-                    for b in payload {
-                        print!("{:02x}", b);
-                    }
-                }
-                Payload::Command(_) => { print!("Command "); }
-                Payload::InterPan => { print!("Inter-PAN "); },
-                Payload::Encrypted(payload) => {
-                    print!("Encrypted ");
-                    for b in payload {
-                        print!("{:02x}", b);
-                    }
-                },
+            for b in payload[used..].iter() {
+                print!("{:02x}", b);
             }
         }
         Err(ref e) => {
             print!("Failed to decode network frame, ");
             match e {
-                SerdeError::NotEnoughSpace => {
+                zigbee_rs::Error::NotEnoughSpace => {
                     print!("Not enough space");
                 }
-                SerdeError::WrongNumberOfBytes => {
+                zigbee_rs::Error::WrongNumberOfBytes => {
                     print!("Wrong number of bytes");
                 }
-                SerdeError::UnknownFrameType => {
+                zigbee_rs::Error::UnknownFrameType => {
                     print!("Unkown frame type");
                 }
-                SerdeError::BrokenRelayList => {
+                zigbee_rs::Error::BrokenRelayList => {
                     print!("Broken relay list");
                 }
-                SerdeError::UnknownNetworkCommand => {
+                zigbee_rs::Error::UnknownNetworkCommand => {
                     print!("Unkown network command");
                 }
                 SerdeError::UnknownDeliveryMode => {
                     print!("Unkown delivery mode");
+                _ => {
+                    print!("{:?}", e);
                 }
             }
         }
