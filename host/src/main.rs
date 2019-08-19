@@ -65,8 +65,9 @@ fn parse_network_frame(payload: &[u8]) {
                 zigbee_rs::Error::UnknownNetworkCommand => {
                     print!("Unkown network command");
                 }
-                SerdeError::UnknownDeliveryMode => {
+                zigbee_rs::Error::UnknownDeliveryMode => {
                     print!("Unkown delivery mode");
+                }
                 _ => {
                     print!("{:?}", e);
                 }
