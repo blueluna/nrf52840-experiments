@@ -12,12 +12,13 @@ use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
 use zigbee_rs::{
     self,
-    application_service::{frame::ApplicationServiceFrame, security},
+    application_service::{frame::ApplicationServiceFrame},
     network::{
         self,
         beacon::BeaconInformation,
         frame::{DiscoverRoute, NetworkFrame},
     },
+    security,
     serde::SerdeVariableSize,
 };
 
@@ -98,13 +99,13 @@ fn parse_application_service_frame(payload: &[u8]) {
                 print!(" Dst {:02x}", addr);
             }
             if let Some(group) = frame.group {
-                print!(" Group {:02x}{:02x}", group[0], group[1]);
+                print!(" Group {:04x}", group);
             }
             if let Some(cluster) = frame.cluster {
-                print!(" Cluster {:02x}{:02x}", cluster[0], cluster[1]);
+                print!(" Cluster {:04x}", cluster);
             }
             if let Some(profile) = frame.profile {
-                print!(" Profile {:02x}{:02x}", profile[0], profile[1]);
+                print!(" Profile {:04x}", profile);
             }
             if let Some(addr) = frame.source {
                 print!(" Src {:02x}", addr);
