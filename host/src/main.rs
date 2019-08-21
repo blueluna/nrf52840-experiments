@@ -9,7 +9,6 @@ use serialport::prelude::*;
 
 use slice_deque::SliceDeque;
 
-use byteorder::{ByteOrder, LittleEndian};
 use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
 use zigbee_rs::{
@@ -37,12 +36,7 @@ fn handle_security(payload: &[u8], offset: usize, mut output: &mut [u8]) -> usiz
                 header.control.level, header.control.identifier
             );
             if let Some(src) = header.source {
-                let mut source = [0u8; 8];
-                LittleEndian::write_u64(&mut source[0..8], src);
-                print!(" Source ");
-                for b in source.iter() {
-                    print!("{:02x} ", b);
-                }
+                print!(" Source {}", src);
             }
             if let Some(seq) = header.sequence {
                 print!(" Sequence {}", seq);
@@ -84,6 +78,8 @@ fn handle_security(payload: &[u8], offset: usize, mut output: &mut [u8]) -> usiz
 }
 
 fn handle_device_profile(payload: &[u8], cluster: u16) {
+    use zigbee_rs::device_profile::DeviceProfileMessage;
+
     print!("ZDP ");
     match DeviceProfileFrame::unpack(payload, cluster) {
         Ok((frame, _)) => {
@@ -91,10 +87,56 @@ fn handle_device_profile(payload: &[u8], cluster: u16) {
                 "SEQ {} ",
                 frame.transaction_sequence,
             );
-            print!(
-                "{:?} ",
-                frame.message,
-            );
+            match frame.message {
+                DeviceProfileMessage::NetworkAddressRequest(req) => {
+                    print!("Network Address Request {} {:?} Start {}", req.address, req.request_type, req.start_index);
+                }
+                DeviceProfileMessage::NetworkAddressResponse(rsp) => {
+                    print!("Network Address Response {:?} {} {}", rsp.status, rsp.network_address, rsp.ieee_address);
+                    if let Some(index) = rsp.start_index {
+                        print!(" Start {}", index);
+                    }
+                    if let Some(associated_devices) = rsp.associated_devices {
+                        print!(" Associated Devices");
+                        for address in associated_devices {
+                            print!(" {}", address);
+                        }
+                    }
+                }
+                DeviceProfileMessage::IeeeAddressRequest(req) => {
+                    print!("Network Address Request {} {:?} Start {}", req.address, req.request_type, req.start_index);
+                }
+                DeviceProfileMessage::IeeeAddressResponse(rsp) => {
+                    print!("Network Address Response {:?} {} {}", rsp.status, rsp.network_address, rsp.ieee_address);
+                    if let Some(index) = rsp.start_index {
+                        print!(" Start {}", index);
+                    }
+                    if let Some(associated_devices) = rsp.associated_devices {
+                        print!(" Associated Devices");
+                        for address in associated_devices {
+                            print!(" {}", address);
+                        }
+                    }
+                }
+                DeviceProfileMessage::NodeDescriptorRequest(req) => {
+                    print!("Node Descriptor Request {}", req.address);
+                }
+                DeviceProfileMessage::MatchDescriptorRequest(req) => {
+                    print!("Match Descriptor Request {:?}", req);
+                }
+                DeviceProfileMessage::MatchDescriptorResponse(rsp) => {
+                    print!("Match Descriptor Response {:?}", rsp);
+                }
+                DeviceProfileMessage::DeviceAnnounce(da) => {
+                    print!("Device Announce {} {} {:?}", da.network_address, da.ieee_address, da.capability);
+                }
+                DeviceProfileMessage::ManagementLinkQualityIndicatorRequest(start_index) => {
+                    print!("LQI Request {} ", start_index);
+                }
+                DeviceProfileMessage::ManagementLinkQualityIndicatorResponse(rsp) => {
+                    print!("LQI Response {:?} ", rsp);
+                }
+            }
         }
         Err(e) => {
             print!("Failed to parse ZDP frame, {:?}", e);
@@ -179,7 +221,16 @@ fn parse_network_command(payload: &[u8])
         Ok((cmd, _used)) => {
             match cmd {
                 Command::RouteRequest(rr) => {
-                    println!("Route Request {:?}", rr);
+                    print!("Route Request {:02x} Cost {}", rr.identifier, rr.path_cost);
+                    match rr.destination_address {
+                        network::address::AddressType::Singlecast(a) => print!(" Destination {}", a),
+                        network::address::AddressType::Multicast(a) => print!(" Group {}", a),
+                    }
+                    if let Some(address) = rr.destination_ieee_address {
+                        print!(" Destination {}", address);
+                    }
+                    println!("");
+
                 }
                 Command::RouteReply(rr) => {
                     println!("Route Reply {:?}", rr);
@@ -191,7 +242,11 @@ fn parse_network_command(payload: &[u8])
                     println!("Leave {:?}", leave);
                 }
                 Command::RouteRecord(rr) => {
-                    println!("Route Record {:?}", rr);
+                    print!("Route Record ");
+                    for address in rr.relay_list {
+                        print!("{} ", address);
+                    }
+                    println!("");
                 }
                 Command::RejoinRequest(rr) => {
                     println!("Rejoin Request{:?}", rr);
@@ -200,7 +255,17 @@ fn parse_network_command(payload: &[u8])
                     println!("Rejoin Response {:?}", rr);
                 }
                 Command::LinkStatus(ls) => {
-                    println!("Link Status {:?}", ls);
+                    print!("Link Status ");
+                    if ls.first_frame && !ls.last_frame {
+                        print!("First ");
+                    }
+                    else if !ls.first_frame && ls.last_frame {
+                        print!("Last ");
+                    }
+                    for entry in ls.entries {
+                        print!("{} Incoming {} Outgoing {} ", entry.address, entry.incoming_cost, entry.outgoing_cost);
+                    }
+                    println!("");
                 }
                 Command::NetworkReport => {
                     println!("Network Report");
