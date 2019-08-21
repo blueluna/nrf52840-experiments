@@ -1,6 +1,8 @@
 use std::io::{self, Read};
 use std::time::Duration;
 
+use std::convert::TryFrom;
+
 use clap::{App, AppSettings, Arg};
 
 use serialport::prelude::*;
@@ -12,20 +14,23 @@ use esercom;
 use ieee802154::mac::{self, beacon::BeaconOrder};
 use zigbee_rs::{
     self,
-    application_service::{frame::ApplicationServiceFrame},
+    application_service::{self, ApplicationServiceHeader},
+    common::profile_identifier::ProfileIdentifier,
+    device_profile::DeviceProfileFrame,
     network::{
         self,
         beacon::BeaconInformation,
-        frame::{DiscoverRoute, NetworkFrame},
+        header::DiscoverRoute,
+        NetworkHeader,
     },
     security,
-    serde::SerdeVariableSize,
+    pack::Pack,
 };
 
 fn handle_security(payload: &[u8], offset: usize, mut output: &mut [u8]) -> usize {
     print!("SEC ");
     let network_key = [0u8; 16];
-    match security::Frame::deserialize(&payload[offset..]) {
+    match security::SecurityHeader::unpack(&payload[offset..]) {
         Ok((header, _used)) => {
             print!(
                 "Level {:?} Key Identifier {:?}",
@@ -78,53 +83,148 @@ fn handle_security(payload: &[u8], offset: usize, mut output: &mut [u8]) -> usiz
     size
 }
 
-fn parse_application_service_frame(payload: &[u8]) {
-    print!("APS ");
-    match ApplicationServiceFrame::deserialize(payload) {
-        Ok((frame, used)) => {
+fn handle_device_profile(payload: &[u8], cluster: u16) {
+    print!("ZDP ");
+    match DeviceProfileFrame::unpack(payload, cluster) {
+        Ok((frame, _)) => {
             print!(
-                " {:?} {:?}",
-                frame.control.frame_type, frame.control.delivery_mode,
+                "SEQ {} ",
+                frame.transaction_sequence,
             );
-            if frame.control.security {
-                print!(" Secure");
-            }
-            if frame.control.acknowledge_request {
-                print!(" AckReq");
-            }
-            if frame.control.extended_header {
-                print!(" ExtHdr");
-            }
-            if let Some(addr) = frame.destination {
-                print!(" Dst {:02x}", addr);
-            }
-            if let Some(group) = frame.group {
-                print!(" Group {:04x}", group);
-            }
-            if let Some(cluster) = frame.cluster {
-                print!(" Cluster {:04x}", cluster);
-            }
-            if let Some(profile) = frame.profile {
-                print!(" Profile {:04x}", profile);
-            }
-            if let Some(addr) = frame.source {
-                print!(" Src {:02x}", addr);
-            }
-            print!(" Counter {:02x} ", frame.counter);
-            print!("Payload: ");
-            for b in payload[used..].iter() {
-                print!("{:02x}", b);
-            }
+            print!(
+                "{:?} ",
+                frame.message,
+            );
         }
         Err(e) => {
-            print!("Failed to parse APS header, {:?}", e);
+            print!("Failed to parse ZDP frame, {:?}", e);
         }
     }
     println!("");
 }
 
+fn parse_application_service_frame(payload: &[u8]) {
+    print!("APS ");
+    match ApplicationServiceHeader::unpack(payload) {
+        Ok((frame, used)) => {
+            print!(
+                "{:?} {:?} ",
+                frame.control.frame_type, frame.control.delivery_mode,
+            );
+            if frame.control.security {
+                print!("Secure ");
+            }
+            if frame.control.acknowledge_request {
+                print!("AckReq ");
+            }
+            if frame.control.extended_header {
+                print!("ExtHdr ");
+            }
+            if let Some(addr) = frame.destination {
+                print!("Dst {:02x} ", addr);
+            }
+            if let Some(group) = frame.group {
+                print!("Group {:04x} ", group);
+            }
+            if let Some(cluster) = frame.cluster {
+                print!("Cluster {:04x} ", cluster);
+            }
+            if let Some(profile) = frame.profile {
+                print!("Profile {:04x} ", profile);
+            }
+            if let Some(addr) = frame.source {
+                print!("Src {:02x} ", addr);
+            }
+            print!("Counter {:02x} ", frame.counter);
+            print!("Payload: ");
+            for b in payload[used..].iter() {
+                print!("{:02x}", b);
+            }
+            println!("");
+            match frame.control.frame_type {
+                application_service::header::FrameType::Data => {
+                    if let (Some(cluster), Some(profile)) = (frame.cluster, frame.profile) {
+                        match ProfileIdentifier::try_from(profile) {
+                            Ok(profile) => {
+                                match profile {
+                                    ProfileIdentifier::DeviceProfile => {
+                                        handle_device_profile(&payload[used..], cluster);
+                                    }
+                                    _ => {
+                                        println!("{:?}", profile);
+                                    }
+                                }
+                            }
+                            Err(_) => (),
+                        }
+                    }
+                }
+                application_service::header::FrameType::Command => (),
+                application_service::header::FrameType::Acknowledgement => (),
+                application_service::header::FrameType::InterPan => (),
+
+            }
+        }
+        Err(e) => {
+            println!("Failed to parse APS header, {:?}", e);
+        }
+    }
+}
+
+fn parse_network_command(payload: &[u8])
+{
+    use network::commands::Command;
+    print!("NWK CMD ");
+    match Command::unpack(payload) {
+        Ok((cmd, _used)) => {
+            match cmd {
+                Command::RouteRequest(rr) => {
+                    println!("Route Request {:?}", rr);
+                }
+                Command::RouteReply(rr) => {
+                    println!("Route Reply {:?}", rr);
+                }
+                Command::NetworkStatus(ns) => {
+                    println!("Network Status {:?}", ns);
+                }
+                Command::Leave(leave) => {
+                    println!("Leave {:?}", leave);
+                }
+                Command::RouteRecord(rr) => {
+                    println!("Route Record {:?}", rr);
+                }
+                Command::RejoinRequest(rr) => {
+                    println!("Rejoin Request{:?}", rr);
+                }
+                Command::RejoinResponse(rr) => {
+                    println!("Rejoin Response {:?}", rr);
+                }
+                Command::LinkStatus(ls) => {
+                    println!("Link Status {:?}", ls);
+                }
+                Command::NetworkReport => {
+                    println!("Network Report");
+                }
+                Command::NetworkUpdate => {
+                    println!("Network Update");
+                }
+                Command::EndDeviceTimeoutRequest => {
+                    println!("End-device Timeout Request");
+                }
+                Command::EndDeviceTimeoutResponse => {
+                    println!("End-device Timeout Response");
+                }
+            }
+        }
+        Err(e) => {
+            println!("Failed to decode network command, {:?}", e);
+        }
+    }
+
+}
+
 fn parse_network_frame(payload: &[u8]) {
-    match NetworkFrame::deserialize(payload) {
+    match NetworkHeader::unpack(payload) {
         Ok((network_frame, used)) => {
             print!("NWK TYP {:?} ", network_frame.control.frame_type);
             print!("VER {} ", network_frame.control.protocol_version);
@@ -168,18 +268,11 @@ fn parse_network_frame(payload: &[u8]) {
             };
             if length > 0 {
                 match network_frame.control.frame_type {
-                    network::frame::FrameType::Data | network::frame::FrameType::InterPan => {
+                    network::header::FrameType::Data | network::header::FrameType::InterPan => {
                         parse_application_service_frame(&aps_payload[..length])
                     }
-                    network::frame::FrameType::Command => {
-                        match network::commands::Command::new_command(&aps_payload[..length]) {
-                            Ok((cmd, _used)) => {
-                                println!("Command {:?}", cmd);
-                            }
-                            Err(e) => {
-                                println!("Failed to decode network command, {:?}", e);
-                            }
-                        }
+                    network::header::FrameType::Command => {
+                        parse_network_command(&aps_payload[..length]);
                     }
                 }
             }
@@ -313,7 +406,7 @@ fn parse_packet(packet: &[u8]) {
                         print!("{:02x}", b);
                     }
                     println!("");
-                    match BeaconInformation::deserialize(frame.payload) {
+                    match BeaconInformation::unpack(frame.payload) {
                         Ok((bi, _)) => {
                             let router = if bi.router_capacity { "Router" } else { "" };
                             let end_device = if bi.end_device_capacity {
