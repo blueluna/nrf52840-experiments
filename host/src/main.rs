@@ -1,10 +1,10 @@
-mod security;
 mod parser;
+mod security;
 
-use std::io::{self, Read};
-use std::time::Duration;
 use std::fs;
+use std::io::{self, Read};
 use std::str::FromStr;
+use std::time::Duration;
 
 use clap::{App, AppSettings, Arg};
 
@@ -22,22 +22,18 @@ struct Config {
     keys: Vec<String>,
 }
 
-fn read_config(file_path: &str) -> Option<Config> 
-{
+fn read_config(file_path: &str) -> Option<Config> {
     match fs::read(file_path) {
-        Ok(bytes) => {
-            match toml::from_str::<Config>(&String::from_utf8_lossy(bytes.as_slice())) {
-                Ok(config) => Some(config),
-                Err(_) => None
-            }
-        }
+        Ok(bytes) => match toml::from_str::<Config>(&String::from_utf8_lossy(bytes.as_slice())) {
+            Ok(config) => Some(config),
+            Err(_) => None,
+        },
         Err(_) => None,
     }
-
 }
 
 fn main() {
-    let matches = App::new("nRF52840-DK host companion")
+    let matches = App::new("nRF52840 802.15.4 host companion")
         .about("Write stuff")
         .setting(AppSettings::DisableVersion)
         .arg(
@@ -47,13 +43,13 @@ fn main() {
                 .help("Path to configuration file")
                 .use_delimiter(false)
                 .required(false)
-                .takes_value(true)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("port")
                 .help("The device path to a serial port")
                 .use_delimiter(false)
-                .required(true)
+                .required(true),
         )
         .get_matches();
 
