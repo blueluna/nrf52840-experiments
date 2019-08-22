@@ -28,7 +28,7 @@ use zigbee_rs::{
 
 fn handle_security(payload: &[u8], offset: usize, mut output: &mut [u8]) -> usize {
     print!("SEC ");
-    let network_key = [0u8; 16];
+    let network_key = [0x00, 0x00, 0x98, 0x08, 0xbc, 0x94, 0xbc, 0x40, 0x08, 0xd8, 0xd8, 0xd0, 0x58, 0xfc, 0x24, 0xf4];
     match security::SecurityHeader::unpack(&payload[offset..]) {
         Ok((header, _used)) => {
             print!(
@@ -148,49 +148,57 @@ fn handle_device_profile(payload: &[u8], cluster: u16) {
 fn parse_application_service_frame(payload: &[u8]) {
     print!("APS ");
     match ApplicationServiceHeader::unpack(payload) {
-        Ok((frame, used)) => {
+        Ok((header, used)) => {
             print!(
                 "{:?} {:?} ",
-                frame.control.frame_type, frame.control.delivery_mode,
+                header.control.frame_type, header.control.delivery_mode,
             );
-            if frame.control.security {
+            if header.control.security {
                 print!("Secure ");
             }
-            if frame.control.acknowledge_request {
+            if header.control.acknowledge_request {
                 print!("AckReq ");
             }
-            if frame.control.extended_header {
+            if header.control.extended_header {
                 print!("ExtHdr ");
             }
-            if let Some(addr) = frame.destination {
+            if let Some(addr) = header.destination {
                 print!("Dst {:02x} ", addr);
             }
-            if let Some(group) = frame.group {
+            if let Some(group) = header.group {
                 print!("Group {:04x} ", group);
             }
-            if let Some(cluster) = frame.cluster {
+            if let Some(cluster) = header.cluster {
                 print!("Cluster {:04x} ", cluster);
             }
-            if let Some(profile) = frame.profile {
+            if let Some(profile) = header.profile {
                 print!("Profile {:04x} ", profile);
             }
-            if let Some(addr) = frame.source {
+            if let Some(addr) = header.source {
                 print!("Src {:02x} ", addr);
             }
-            print!("Counter {:02x} ", frame.counter);
+            print!("Counter {:02x} ", header.counter);
             print!("Payload: ");
             for b in payload[used..].iter() {
                 print!("{:02x}", b);
             }
             println!("");
-            match frame.control.frame_type {
+            let mut processed_payload = [0u8; 256];
+            let length = if header.control.security {
+                handle_security(&payload, used, &mut processed_payload)
+            } else {
+                let length = payload.len() - used;
+                processed_payload[..length].copy_from_slice(&payload[used..]);
+                length
+            };
+            match header.control.frame_type {
                 application_service::header::FrameType::Data => {
-                    if let (Some(cluster), Some(profile)) = (frame.cluster, frame.profile) {
+                    if let (Some(cluster), Some(profile)) = (header.cluster, header.profile) {
                         match ProfileIdentifier::try_from(profile) {
                             Ok(profile) => {
                                 match profile {
                                     ProfileIdentifier::DeviceProfile => {
-                                        handle_device_profile(&payload[used..], cluster);
+                                        handle_device_profile(&processed_payload[..length], cluster);
                                     }
                                     _ => {
                                         println!("{:?}", profile);
