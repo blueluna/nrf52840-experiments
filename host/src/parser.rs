@@ -329,10 +329,6 @@ impl Parser {
                 if let Some(srf) = network_frame.source_route_frame {
                     print!("SRF {:?} ", srf);
                 }
-                print!("Payload: ");
-                for b in payload[used..].iter() {
-                    print!("{:02x}", b);
-                }
                 println!("");
                 let mut processed_payload = [0u8; 256];
                 let length = if network_frame.control.security {
@@ -378,6 +374,10 @@ impl Parser {
                     _ => {
                         print!("{:?}", e);
                     }
+                }
+                print!(" Payload: ");
+                for b in payload.iter() {
+                    print!("{:02x}", b);
                 }
                 println!("");
             }
@@ -478,6 +478,7 @@ impl Parser {
                                 beacon.guaranteed_time_slot_info.slots().len()
                             )
                         }
+                        println!("");
                         match BeaconInformation::unpack(frame.payload) {
                             Ok((bi, _)) => {
                                 let router = if bi.router_capacity { "Router" } else { "" };
