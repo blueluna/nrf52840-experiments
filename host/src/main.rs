@@ -55,7 +55,7 @@ fn main() {
 
     let port_name = matches.value_of("port").unwrap();
     let mut settings: SerialPortSettings = Default::default();
-    settings.baud_rate = 115200;
+    settings.baud_rate = 115_200;
     settings.timeout = Duration::from_millis(1000);
 
     let mut parser = parser::Parser::new();
@@ -64,9 +64,8 @@ fn main() {
         if let Some(config) = read_config(file_path) {
             for (n, key) in config.keys.iter().enumerate() {
                 let name = format!("User {}", n);
-                match Key::from_str(&key) {
-                    Ok(k) => parser.security.add_key(k.into(), &name),
-                    Err(_) => (),
+                if let Ok(k) = Key::from_str(&key) {
+                    parser.security.add_key(k.into(), &name)
                 }
             }
         }
@@ -102,7 +101,7 @@ fn main() {
                                             for b in &pkt_data[..pkt_len] {
                                                 print!("{:02x}", b);
                                             }
-                                            println!("");
+                                            println!();
                                             parser.parse_packet(&pkt_data[..pkt_len]);
                                         }
                                         esercom::MessageType::EnergyDetect => {

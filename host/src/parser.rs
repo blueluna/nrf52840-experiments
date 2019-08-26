@@ -133,7 +133,7 @@ impl Parser {
                 }
             }
         }
-        println!("");
+        println!();
     }
 
     fn parse_application_service_frame(&self, payload: &[u8]) {
@@ -184,7 +184,7 @@ impl Parser {
                             match ProfileIdentifier::try_from(profile) {
                                 Ok(profile) => match profile {
                                     ProfileIdentifier::DeviceProfile => {
-                                        println!("");
+                                        println!();
                                         self.handle_device_profile(
                                             &processed_payload[..length],
                                             cluster,
@@ -195,7 +195,7 @@ impl Parser {
                                         for b in payload[used..].iter() {
                                             print!("{:02x}", b);
                                         }
-                                        println!("");
+                                        println!();
                                     }
                                 },
                                 Err(_) => {
@@ -203,7 +203,7 @@ impl Parser {
                                     for b in payload[used..].iter() {
                                         print!("{:02x}", b);
                                     }
-                                    println!("");
+                                    println!();
                                 }
                             }
                         } else {
@@ -211,12 +211,12 @@ impl Parser {
                             for b in payload[used..].iter() {
                                 print!("{:02x}", b);
                             }
-                            println!("");
+                            println!();
                         }
                     }
-                    application_service::header::FrameType::Command => println!(""),
-                    application_service::header::FrameType::Acknowledgement => println!(""),
-                    application_service::header::FrameType::InterPan => println!(""),
+                    application_service::header::FrameType::Command => println!(),
+                    application_service::header::FrameType::Acknowledgement => println!(),
+                    application_service::header::FrameType::InterPan => println!(),
                 }
             }
             Err(e) => {
@@ -241,7 +241,7 @@ impl Parser {
                     if let Some(address) = rr.destination_ieee_address {
                         print!(" Destination {}", address);
                     }
-                    println!("");
+                    println!();
                 }
                 Command::RouteReply(rr) => {
                     println!("Route Reply {:?}", rr);
@@ -257,7 +257,7 @@ impl Parser {
                     for address in rr.relay_list {
                         print!("{} ", address);
                     }
-                    println!("");
+                    println!();
                 }
                 Command::RejoinRequest(rr) => {
                     println!("Rejoin Request{:?}", rr);
@@ -278,19 +278,23 @@ impl Parser {
                             entry.address, entry.incoming_cost, entry.outgoing_cost
                         );
                     }
-                    println!("");
+                    println!();
                 }
-                Command::NetworkReport => {
-                    println!("Network Report");
+                Command::NetworkReport(nr) => {
+                    println!("Network Conflict {} {}", nr.extended_pan_identifier,
+                        nr.pan_identifier);
                 }
-                Command::NetworkUpdate => {
-                    println!("Network Update");
+                Command::NetworkUpdate(nu) => {
+                    println!("Network Update {} {}", nu.extended_pan_identifier,
+                        nu.pan_identifier);
                 }
-                Command::EndDeviceTimeoutRequest => {
-                    println!("End-device Timeout Request");
+                Command::EndDeviceTimeoutRequest(edtr) => {
+                    println!("End-device Timeout Request, Timeout {:?}", edtr.timeout);
                 }
-                Command::EndDeviceTimeoutResponse => {
-                    println!("End-device Timeout Response");
+                Command::EndDeviceTimeoutResponse(edtr) => {
+                    println!("End-device Timeout Response, {:?} {} {}", edtr.status,
+                        if edtr.mac_keep_alive { "MAC keep alive" } else { "" },
+                        if edtr.end_device_keep_alive { "End device keep alive" } else { "" },);
                 }
             },
             Err(e) => {
@@ -329,7 +333,7 @@ impl Parser {
                 if let Some(srf) = network_frame.source_route_frame {
                     print!("SRF {:?} ", srf);
                 }
-                println!("");
+                println!();
                 let mut processed_payload = [0u8; 256];
                 let length = if network_frame.control.security {
                     self.security
@@ -379,7 +383,7 @@ impl Parser {
                 for b in payload.iter() {
                     print!("{:02x}", b);
                 }
-                println!("");
+                println!();
             }
         }
     }
@@ -446,7 +450,7 @@ impl Parser {
                 match frame.content {
                     mac::FrameContent::Acknowledgement => {
                         // Nothing here
-                        println!("");
+                        println!();
                     }
                     mac::FrameContent::Beacon(beacon) => {
                         print!(" Beacon ");
@@ -478,7 +482,7 @@ impl Parser {
                                 beacon.guaranteed_time_slot_info.slots().len()
                             )
                         }
-                        println!("");
+                        println!();
                         match BeaconInformation::unpack(frame.payload) {
                             Ok((bi, _)) => {
                                 let router = if bi.router_capacity { "Router" } else { "" };
@@ -505,12 +509,12 @@ impl Parser {
                                 for b in frame.payload.iter() {
                                     print!("{:02x}", b);
                                 }
-                                println!("");
+                                println!();
                             }
                         }
                     }
                     mac::FrameContent::Data => {
-                        println!("");
+                        println!();
                         self.parse_network_frame(frame.payload);
                     }
                     mac::FrameContent::Command(command) => {

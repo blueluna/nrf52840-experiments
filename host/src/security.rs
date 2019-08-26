@@ -68,7 +68,7 @@ impl SecurityService {
             }
         }
         println!(" No valid key found");
-        return 0;
+        0
     }
 
     pub fn add_key(&mut self, key: [u8; 16], name: &str) {
