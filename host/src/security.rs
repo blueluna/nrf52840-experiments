@@ -11,16 +11,16 @@ impl SecurityService {
     pub fn new() -> Self {
         gcrypt::init_default();
         let mut keys = Vec::new();
-        keys.push((Key::from(security::DEFAULT_LINK_KEY), "Default Link Key"));
+        keys.push((Key::from(security::DEFAULT_LINK_KEY), "Default Link Key".to_string()));
         keys.push((
             Key::from(security::LIGHT_LINK_MASTER_KEY),
-            "Light Link Master Key",
+            "Light Link Master Key".to_string(),
         ));
         keys.push((
             Key::from(security::LIGHT_LINK_COMMISIONING_LINK_KEY),
-            "Light Link Commisioning Link Key",
+            "Light Link Commisioning Link Key".to_string(),
         ));
-        SecurityService { keys: Vec::new() }
+        SecurityService { keys }
     }
 
     fn print_header(header: &security::SecurityHeader) {
