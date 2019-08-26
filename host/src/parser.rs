@@ -233,10 +233,10 @@ impl Parser {
                 Command::RouteRequest(rr) => {
                     print!("Route Request {:02x} Cost {}", rr.identifier, rr.path_cost);
                     match rr.destination_address {
-                        network::address::AddressType::Singlecast(a) => {
+                        network::commands::AddressType::Singlecast(a) => {
                             print!(" Destination {}", a)
                         }
-                        network::address::AddressType::Multicast(a) => print!(" Group {}", a),
+                        network::commands::AddressType::Multicast(a) => print!(" Group {}", a),
                     }
                     if let Some(address) = rr.destination_ieee_address {
                         print!(" Destination {}", address);
