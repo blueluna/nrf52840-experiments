@@ -4,16 +4,16 @@ use cortex_m_semihosting::hprintln;
 use nrf52840_pac::{radio, RADIO};
 
 pub const MAX_PACKET_LENGHT: u8 = 128;
-pub const CRC_POLYNOMIAL: u32 = 0x00011021;
+pub const CRC_POLYNOMIAL: u32 = 0x0001_1021;
 pub const CCA_ED_THRESHOLD_DEFAULT: u8 = 20;
 pub const CCA_CORR_THRESHOLD_DEFAULT: u8 = 20;
 pub const CCA_CORR_LIMIT_DEFAULT: u8 = 2;
-pub const MHMU_MASK: u32 = 0xff000700;
+pub const MHMU_MASK: u32 = 0xff0_00700;
 
 pub type PacketBuffer = [u8; MAX_PACKET_LENGHT as usize];
 
 fn clear_interrupts(radio: &mut RADIO) {
-    radio.intenclr.write(|w| unsafe { w.bits(0xffffffff) });
+    radio.intenclr.write(|w| unsafe { w.bits(0xffff_ffff) });
 }
 
 /// # 802.15.4 PHY layer implementation for nRF Radio
@@ -105,8 +105,7 @@ impl Radio {
     /// Get the configured channel
     pub fn get_channel(&mut self) -> u8 {
         let frequency_offset = self.radio.frequency.read().frequency().bits();
-        let channel = (frequency_offset / 5) + 10;
-        channel
+        (frequency_offset / 5) + 10
     }
 
     /// Configure transmission power
@@ -382,7 +381,7 @@ impl Radio {
             // 16-bit CRC has been removed, 1 octet LQI has been added to the end
             if length > 0 && (phr & 0x80) == 0 {
                 buffer[0] = phr & 0x7f;
-                buffer[1..(length + 1)].copy_from_slice(&self.buffer[1..(length + 1)]);
+                buffer[1..=length].copy_from_slice(&self.buffer[1..=length]);
                 return length;
             }
         }
@@ -461,7 +460,7 @@ impl Radio {
     /// Returns true if the energy detection query could be started.
     ///
     pub fn start_energy_detect(&mut self, count: u32) -> bool {
-        if count > 0 && count <= 0x100000 {
+        if count > 0 && count <= 0x10_0000 {
             self.enter_disabled();
             self.radio.edcnt.write(|w| unsafe { w.bits(count - 1) });
             self.radio.shorts.reset();

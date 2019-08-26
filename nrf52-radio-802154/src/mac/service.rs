@@ -76,13 +76,10 @@ impl Service {
         };
         if let FrameContent::Beacon(beacon) = &frame.content {
             if beacon.superframe_spec.pan_coordinator && beacon.superframe_spec.association_permit {
-                match self.state {
-                    State::ActiveScan => {
-                        self.coordinator_id.id = Some(src_id);
-                        self.coordinator_id.short = Some(src_short);
-                        self.state = State::Join;
-                    }
-                    _ => (),
+                if let State::ActiveScan = self.state {
+                    self.coordinator_id.id = Some(src_id);
+                    self.coordinator_id.short = Some(src_short);
+                    self.state = State::Join;
                 }
             }
         }
@@ -91,20 +88,14 @@ impl Service {
 
     fn handle_mac_command(&mut self, frame: &Frame) -> u32 {
         if let FrameContent::Command(command) = &frame.content {
-            match command {
-                Command::AssociationResponse(addr, status) => {
-                    if *status == AssociationStatus::Successful {
-                        match self.state {
-                            State::QueryStatus => {
-                                self.id.id = frame.header.source.pan_id();
-                                self.id.short = Some(*addr);
-                                self.state = State::Associated;
-                            }
-                            _ => {}
-                        }
+            if let Command::AssociationResponse(addr, status) = command {
+                if *status == AssociationStatus::Successful {
+                    if let State::QueryStatus = self.state {
+                        self.id.id = frame.header.source.pan_id();
+                        self.id.short = Some(*addr);
+                        self.state = State::Associated;
                     }
                 }
-                _ => {}
             }
         }
         0
@@ -240,7 +231,7 @@ impl Service {
             footer: [0u8; 2],
         };
         self.state = State::ActiveScan;
-        (frame.encode(&mut data, WriteFooter::No), 1000000)
+        (frame.encode(&mut data, WriteFooter::No), 1_000_000)
     }
 
     fn build_association_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
@@ -270,7 +261,7 @@ impl Service {
             payload: &[],
             footer: [0u8; 2],
         };
-        (frame.encode(&mut data, WriteFooter::No), 1000000)
+        (frame.encode(&mut data, WriteFooter::No), 1_000_000)
     }
 
     fn build_data_request(&mut self, mut data: &mut [u8]) -> (usize, u32) {
@@ -296,7 +287,7 @@ impl Service {
             payload: &[0u8; 0],
             footer: [0u8; 2],
         };
-        (frame.encode(&mut data, WriteFooter::No), 1000000)
+        (frame.encode(&mut data, WriteFooter::No), 1_000_000)
     }
 
     pub fn build_packet(&mut self, mut data: &mut [u8]) -> (usize, u32) {
@@ -307,7 +298,7 @@ impl Service {
                 State::Orphan => self.build_beacon_request(&mut data),
                 State::ActiveScan => {
                     self.state = State::Orphan;
-                    (0, 29000000)
+                    (0, 29_000_000)
                 }
                 State::Join => self.build_association_request(&mut data),
                 State::QueryStatus => self.build_data_request(&mut data),
