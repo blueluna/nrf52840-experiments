@@ -60,7 +60,7 @@ const APP: () = {
         timer1.mode.write(|w| w.mode().timer());
         timer1.bitmode.write(|w| w.bitmode()._32bit());
         timer1.prescaler.write(|w| unsafe { w.prescaler().bits(4) });
-        timer1.cc[0].write(|w| unsafe { w.bits(30000000) });
+        timer1.cc[0].write(|w| unsafe { w.bits(30_000_000) });
         timer1.shorts.write(|w| w.compare0_stop().enabled());
         timer1.intenset.write(|w| w.compare0().set_bit());
         timer1.tasks_start.write(|w| w.tasks_start().set_bit());
@@ -71,8 +71,8 @@ const APP: () = {
         radio.receive_prepare();
 
         BEACON_TIMER = timer1;
-        LED_RED = p0.p0_23.degrade().into_push_pull_output(gpio::Level::High);
-        LED_BLUE = p0.p0_24.degrade().into_push_pull_output(gpio::Level::Low);
+        LED_RED = p0.p0_08.degrade().into_push_pull_output(gpio::Level::High);
+        LED_BLUE = p0.p0_12.degrade().into_push_pull_output(gpio::Level::Low);
         RADIO = radio;
     }
 

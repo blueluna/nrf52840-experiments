@@ -46,17 +46,17 @@ const APP: () = {
         //    01 23 45 67 89 AB
         //  /  /  /       \  \  \
         // 01 23 45 FF FE 67 89 AB
-        let devaddr_lo = device.FICR.deviceaddr[0].read().bits();
-        let devaddr_hi = device.FICR.deviceaddr[1].read().bits() as u16;
-        let extended_address = (devaddr_hi as u64) << 48
-            | ((devaddr_lo & 0xff000000) as u64) << 40
-            | ((devaddr_lo & 0x00ffffff) as u64)
-            | 0x000000fffe000000u64;
+        let devaddr_lo = u64::from(device.FICR.deviceaddr[0].read().bits());
+        let devaddr_hi = u64::from(device.FICR.deviceaddr[1].read().bits());
+        let extended_address = (devaddr_hi & 0x0000_ffff) << 48
+            | (devaddr_lo & 0xff00_0000) << 40
+            | (devaddr_lo & 0x00ff_ffff)
+            | 0x0000_00ff_fe00_0000u64;
         let extended_address = ExtendedAddress(extended_address);
 
         let mut timer1 = device.TIMER1;
         timer1.init();
-        timer1.fire_at(1, 30000000);
+        timer1.fire_at(1, 30_000_000);
 
         let uarte0 = device.UARTE0.constrain(
             uarte::Pins {
