@@ -113,7 +113,7 @@ const APP: () = {
 
         let (size, fire_at) = service.build_packet(&mut packet);
         if size > 0 {
-            let _used = radio.queue_transmission(&mut packet[..size]);
+            let _used = radio.queue_transmission(&packet[..size]);
         }
         if fire_at > 0 {
             timer.fire_at(1, fire_at);
