@@ -14,6 +14,7 @@ use nrf52840_pac as pac;
 use esercom;
 
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
+use nrf52_radio_802154::timer::Timer;
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
@@ -21,6 +22,7 @@ const APP: () = {
     static mut LED_2: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
+    static mut TIMER: pac::TIMER1 = ();
 
     #[init]
     fn init() {
@@ -44,6 +46,10 @@ const APP: () = {
             uarte::Baudrate::BAUD115200,
         );
 
+        let mut timer1 = device.TIMER1;
+        timer1.init();
+        timer1.fire_at(1, 10_000_000);
+
         let mut radio = Radio::new(device.RADIO);
         radio.set_channel(11);
         radio.set_transmission_power(8);
@@ -53,14 +59,16 @@ const APP: () = {
         LED_2 = p0.p0_23.degrade().into_push_pull_output(gpio::Level::High);
         RADIO = radio;
         UARTE = uarte0;
+        TIMER = timer1;
     }
 
-    #[interrupt(resources = [LED_1, LED_2, RADIO, UARTE],)]
+    #[interrupt(resources = [LED_1, LED_2, RADIO, TIMER, UARTE],)]
     fn RADIO() {
-        let uarte = resources.UARTE;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
-        let radio = resources.RADIO;
+        let mut radio = resources.RADIO;
+        let mut timer = resources.TIMER;
+        let mut uarte = resources.UARTE;
 
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
@@ -81,5 +89,58 @@ const APP: () = {
             }
             (*resources.LED_2).set_low();
         }
+        let state = radio.state();
+        let events = radio.events();
+        packet[0] = state.bits();
+        packet[1] = events as u8;
+        packet[2] = (events >> 8) as u8;
+        packet[3] = (events >> 16) as u8;
+        packet[4] = (events >> 24) as u8;
+        match esercom::com_encode(
+            esercom::MessageType::RadioState,
+            &packet[..5],
+            &mut host_packet,
+        ) {
+            Ok(written) => {
+                uarte.write(&host_packet[..written]).unwrap();
+            }
+            Err(_) => {
+                hprintln!("Failed to encode radio state packet").unwrap();
+            }
+        }
+        timer.fire_at(1, 10_000_000);
+    }
+
+    #[interrupt(resources = [RADIO, TIMER, UARTE],)]
+    fn TIMER1() {
+        let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
+        let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
+        let mut radio = resources.RADIO;
+        let mut timer = resources.TIMER;
+        let mut uarte = resources.UARTE;
+
+        timer.ack_compare_event(1);
+
+        let state = radio.state();
+        let events = radio.events();
+        packet[0] = state.bits();
+        packet[1] = events as u8;
+        packet[2] = (events >> 8) as u8;
+        packet[3] = (events >> 16) as u8;
+        packet[4] = (events >> 24) as u8;
+        match esercom::com_encode(
+            esercom::MessageType::RadioState,
+            &packet[..5],
+            &mut host_packet,
+        ) {
+            Ok(written) => {
+                uarte.write(&host_packet[..written]).unwrap();
+            }
+            Err(_) => {
+                hprintln!("Failed to encode radio state packet").unwrap();
+            }
+        }
+
+        timer.fire_at(1, 10_000_000);
     }
 };

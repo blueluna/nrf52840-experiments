@@ -12,6 +12,29 @@ pub const MHMU_MASK: u32 = 0xff0_00700;
 
 pub type PacketBuffer = [u8; MAX_PACKET_LENGHT as usize];
 
+pub const EVENT_READY: u32 = 1;
+pub const EVENT_ADDRESS: u32 = 1 << 1;
+pub const EVENT_PAYLOAD: u32 = 1 << 2;
+pub const EVENT_END: u32 = 1 << 3;
+pub const EVENT_DISABLED: u32 = 1 << 4;
+pub const EVENT_DEVMATCH: u32 = 1 << 5;
+pub const EVENT_DEVMISS: u32 = 1 << 6;
+pub const EVENT_RSSIEND: u32 = 1 << 7;
+pub const EVENT_BCMATCH: u32 = 1 << 8;
+pub const EVENT_CRCOK: u32 = 1 << 9;
+pub const EVENT_CRCERROR: u32 = 1 << 10;
+pub const EVENT_FRAMESTART: u32 = 1 << 11;
+pub const EVENT_EDEND: u32 = 1 << 12;
+pub const EVENT_EDSTOPPED: u32 = 1 << 13;
+pub const EVENT_CCAIDLE: u32 = 1 << 14;
+pub const EVENT_CCABUSY: u32 = 1 << 15;
+pub const EVENT_CCASTOPPED: u32 = 1 << 16;
+pub const EVENT_RATEBOOST: u32 = 1 << 17;
+pub const EVENT_TXREADY: u32 = 1 << 18;
+pub const EVENT_RXREADY: u32 = 1 << 19;
+pub const EVENT_MHRMATCH: u32 = 1 << 20;
+pub const EVENT_PHYEND: u32 = 1 << 21;
+
 fn clear_interrupts(radio: &mut RADIO) {
     radio.intenclr.write(|w| unsafe { w.bits(0xffff_ffff) });
 }
@@ -129,6 +152,191 @@ impl Radio {
             -40 => self.radio.txpower.write(|w| w.txpower().neg40d_bm()),
             _ => panic!("Bad transmission power value"),
         }
+    }
+
+    pub fn events(&self) -> u32 {
+        let mut events = 0;
+        if self
+            .radio
+            .events_ready
+            .read()
+            .events_ready()
+            .bit_is_set()
+        {
+            events |= EVENT_READY;
+        }
+        if self
+            .radio
+            .events_address
+            .read()
+            .events_address()
+            .bit_is_set()
+        {
+            events |= EVENT_ADDRESS;
+        }
+        if self
+            .radio
+            .events_payload
+            .read()
+            .events_payload()
+            .bit_is_set()
+        {
+            events |= EVENT_PAYLOAD;
+        }
+        if self
+            .radio
+            .events_end
+            .read()
+            .events_end()
+            .bit_is_set()
+        {
+            events |= EVENT_END;
+        }
+        if self
+            .radio
+            .events_disabled
+            .read()
+            .events_disabled()
+            .bit_is_set()
+        {
+            events |= EVENT_DISABLED;
+        }
+        if self
+            .radio
+            .events_devmatch
+            .read()
+            .events_devmatch()
+            .bit_is_set()
+        {
+            events |= EVENT_DEVMATCH;
+        }
+        if self
+            .radio
+            .events_devmiss
+            .read()
+            .events_devmiss()
+            .bit_is_set()
+        {
+            events |= EVENT_DEVMISS;
+        }
+        if self
+            .radio
+            .events_rssiend
+            .read()
+            .events_rssiend()
+            .bit_is_set()
+        {
+            events |= EVENT_RSSIEND;
+        }
+        if self
+            .radio
+            .events_bcmatch
+            .read()
+            .events_bcmatch()
+            .bit_is_set()
+        {
+            events |= EVENT_BCMATCH;
+        }
+        if self.radio.events_crcok.read().events_crcok().bit_is_set() {
+            events |= EVENT_CRCOK;
+        }
+        if self
+            .radio
+            .events_crcerror
+            .read()
+            .events_crcerror()
+            .bit_is_set()
+        {
+            events |= EVENT_CRCERROR;
+        }
+        if self
+            .radio
+            .events_framestart
+            .read()
+            .events_framestart()
+            .bit_is_set()
+        {
+            events |= EVENT_FRAMESTART;
+        }
+        if self.radio.events_edend.read().events_edend().bit_is_set() {
+            events |= EVENT_EDEND;
+        }
+        if self
+            .radio
+            .events_edstopped
+            .read()
+            .events_edstopped()
+            .bit_is_set()
+        {
+            events |= EVENT_EDSTOPPED;
+        }
+        if self
+            .radio
+            .events_ccaidle
+            .read()
+            .events_ccaidle()
+            .bit_is_set()
+        {
+            events |= EVENT_CCAIDLE;
+        }
+        if self
+            .radio
+            .events_ccabusy
+            .read()
+            .events_ccabusy()
+            .bit_is_set()
+        {
+            events |= EVENT_CCABUSY;
+        }
+        if self
+            .radio
+            .events_ccastopped
+            .read()
+            .events_ccastopped()
+            .bit_is_set()
+        {
+            events |= EVENT_CCASTOPPED;
+        }
+        if self
+            .radio
+            .events_rateboost
+            .read()
+            .events_rateboost()
+            .bit_is_set()
+        {
+            events |= EVENT_RATEBOOST;
+        }
+        if self
+            .radio
+            .events_txready
+            .read()
+            .events_txready()
+            .bit_is_set()
+        {
+            events |= EVENT_TXREADY;
+        }
+        if self
+            .radio
+            .events_rxready
+            .read()
+            .events_rxready()
+            .bit_is_set()
+        {
+            events |= EVENT_RXREADY;
+        }
+        if self
+            .radio
+            .events_mhrmatch
+            .read()
+            .events_mhrmatch()
+            .bit_is_set()
+        {
+            events |= EVENT_MHRMATCH;
+        }
+        if self.radio.events_phyend.read().events_phyend().bit_is_set() {
+            events |= EVENT_PHYEND;
+        }
+        events
     }
 
     pub fn print_interrupt(&self) {
@@ -360,7 +568,9 @@ impl Radio {
     /// Returns the number of bytes received, or zero if no data could be received.
     ///
     pub fn receive(&mut self, buffer: &mut PacketBuffer) -> usize {
+        // PHYEND event signal
         if self.radio.events_phyend.read().events_phyend().bit_is_set() {
+            // Clear interrupt
             self.radio.events_phyend.reset();
             self.radio.shorts.reset();
             self.radio.shorts.write(|w| {
