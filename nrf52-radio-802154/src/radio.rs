@@ -3,7 +3,10 @@
 use cortex_m_semihosting::hprintln;
 use nrf52840_pac::{radio, RADIO};
 
-pub const MAX_PACKET_LENGHT: u8 = 128;
+const MAX_PACKET_LENGHT_REG: u8 = 129;
+/// Max packet length, 127 bytes according to the standard
+/// Here the length byte and LQI byte is added
+pub const MAX_PACKET_LENGHT: usize = MAX_PACKET_LENGHT_REG as usize;
 pub const CRC_POLYNOMIAL: u32 = 0x0001_1021;
 pub const CCA_ED_THRESHOLD_DEFAULT: u8 = 20;
 pub const CCA_CORR_THRESHOLD_DEFAULT: u8 = 20;
@@ -62,10 +65,20 @@ impl Radio {
             radio.crcpoly.write(|w| w.crcpoly().bits(CRC_POLYNOMIAL));
             radio.crcinit.write(|w| w.crcinit().bits(0));
             // Configure packet layout
+            // 8-bit on air length
+            // S0 length, zero bytes
+            // S1 length, zero bytes
+            // S1 included in RAM if S1 length > 0, No.
+            // Code Indicator length, 0
+            // Preamble length 32-bit zero
+            // Exclude CRC
+            // No TERM field
             radio
                 .pcnf0
                 .write(|w| w.lflen().bits(8).plen()._32bit_zero().crcinc().set_bit());
-            radio.pcnf1.write(|w| w.maxlen().bits(MAX_PACKET_LENGHT));
+            radio
+                .pcnf1
+                .write(|w| w.maxlen().bits(MAX_PACKET_LENGHT_REG));
             // Configure clear channel assessment to sane default
             radio.ccactrl.write(|w| {
                 w.ccamode()
@@ -93,7 +106,7 @@ impl Radio {
 
         Self {
             radio,
-            buffer: [0u8; MAX_PACKET_LENGHT as usize],
+            buffer: [0u8; MAX_PACKET_LENGHT],
         }
     }
 
@@ -156,13 +169,7 @@ impl Radio {
 
     pub fn events(&self) -> u32 {
         let mut events = 0;
-        if self
-            .radio
-            .events_ready
-            .read()
-            .events_ready()
-            .bit_is_set()
-        {
+        if self.radio.events_ready.read().events_ready().bit_is_set() {
             events |= EVENT_READY;
         }
         if self
@@ -183,13 +190,7 @@ impl Radio {
         {
             events |= EVENT_PAYLOAD;
         }
-        if self
-            .radio
-            .events_end
-            .read()
-            .events_end()
-            .bit_is_set()
-        {
+        if self.radio.events_end.read().events_end().bit_is_set() {
             events |= EVENT_END;
         }
         if self
@@ -339,177 +340,6 @@ impl Radio {
         events
     }
 
-    pub fn print_interrupt(&self) {
-        if self
-            .radio
-            .events_address
-            .read()
-            .events_address()
-            .bit_is_set()
-        {
-            hprintln!("address").unwrap();
-        }
-        if self
-            .radio
-            .events_bcmatch
-            .read()
-            .events_bcmatch()
-            .bit_is_set()
-        {
-            hprintln!("bc match").unwrap();
-        }
-        if self
-            .radio
-            .events_ccabusy
-            .read()
-            .events_ccabusy()
-            .bit_is_set()
-        {
-            hprintln!("cca busy").unwrap();
-        }
-        if self
-            .radio
-            .events_ccaidle
-            .read()
-            .events_ccaidle()
-            .bit_is_set()
-        {
-            hprintln!("cca idle").unwrap();
-        }
-        if self
-            .radio
-            .events_ccastopped
-            .read()
-            .events_ccastopped()
-            .bit_is_set()
-        {
-            hprintln!("cca stopped").unwrap();
-        }
-        if self
-            .radio
-            .events_crcerror
-            .read()
-            .events_crcerror()
-            .bit_is_set()
-        {
-            hprintln!("crc error").unwrap();
-        }
-        if self.radio.events_crcok.read().events_crcok().bit_is_set() {
-            hprintln!("crc ok").unwrap();
-        }
-        if self
-            .radio
-            .events_devmatch
-            .read()
-            .events_devmatch()
-            .bit_is_set()
-        {
-            hprintln!("dev match").unwrap();
-        }
-        if self
-            .radio
-            .events_devmiss
-            .read()
-            .events_devmiss()
-            .bit_is_set()
-        {
-            hprintln!("dev miss").unwrap();
-        }
-        if self
-            .radio
-            .events_disabled
-            .read()
-            .events_disabled()
-            .bit_is_set()
-        {
-            hprintln!("disabled").unwrap();
-        }
-        if self.radio.events_edend.read().events_edend().bit_is_set() {
-            hprintln!("ed end").unwrap();
-        }
-        if self
-            .radio
-            .events_edstopped
-            .read()
-            .events_edstopped()
-            .bit_is_set()
-        {
-            hprintln!("ed stopped").unwrap();
-        }
-        if self.radio.events_end.read().events_end().bit_is_set() {
-            hprintln!("end").unwrap();
-        }
-        if self
-            .radio
-            .events_framestart
-            .read()
-            .events_framestart()
-            .bit_is_set()
-        {
-            hprintln!("frame start").unwrap();
-        }
-        if self
-            .radio
-            .events_mhrmatch
-            .read()
-            .events_mhrmatch()
-            .bit_is_set()
-        {
-            hprintln!("mhr match").unwrap();
-        }
-        if self
-            .radio
-            .events_payload
-            .read()
-            .events_payload()
-            .bit_is_set()
-        {
-            hprintln!("payload").unwrap();
-        }
-        if self.radio.events_phyend.read().events_phyend().bit_is_set() {
-            hprintln!("phy end").unwrap();
-        }
-        if self
-            .radio
-            .events_rateboost
-            .read()
-            .events_rateboost()
-            .bit_is_set()
-        {
-            hprintln!("rate boost").unwrap();
-        }
-        if self.radio.events_ready.read().events_ready().bit_is_set() {
-            hprintln!("ready").unwrap();
-        }
-        if self
-            .radio
-            .events_rssiend
-            .read()
-            .events_rssiend()
-            .bit_is_set()
-        {
-            hprintln!("rssi end").unwrap();
-        }
-        if self
-            .radio
-            .events_rxready
-            .read()
-            .events_rxready()
-            .bit_is_set()
-        {
-            hprintln!("rx ready").unwrap();
-        }
-        if self
-            .radio
-            .events_txready
-            .read()
-            .events_txready()
-            .bit_is_set()
-        {
-            hprintln!("tx ready").unwrap();
-        }
-    }
-
     // Enter the disabled state
     fn enter_disabled(&mut self) {
         if !self.state().is_disabled() {
@@ -540,14 +370,9 @@ impl Radio {
     pub fn receive_prepare(&mut self) {
         self.enter_disabled();
         self.radio.shorts.reset();
-        self.radio.shorts.write(|w| {
-            w.rxready_start()
-                .enabled()
-                .phyend_disable()
-                .enabled()
-                .disabled_rxen()
-                .enabled()
-        });
+        self.radio
+            .shorts
+            .write(|w| w.rxready_start().enabled().phyend_start().enabled());
         self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
     }
 
@@ -572,15 +397,63 @@ impl Radio {
         if self.radio.events_phyend.read().events_phyend().bit_is_set() {
             // Clear interrupt
             self.radio.events_phyend.reset();
-            self.radio.shorts.reset();
-            self.radio.shorts.write(|w| {
-                w.rxready_start()
-                    .enabled()
-                    .phyend_disable()
-                    .enabled()
-                    .disabled_rxen()
-                    .enabled()
-            });
+            // Re-enable receive after sending a packet
+            if self.radio.state.read().state().is_tx_idle() {
+                self.radio.shorts.reset();
+                self.radio
+                    .shorts
+                    .write(|w| w.rxready_start().enabled().phyend_start().enabled());
+                self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
+            }
+
+            let phr = self.buffer[0];
+            // Clear PHR so we do not read old data next time
+            self.buffer[0] = 0;
+            let length = (phr & 0x7f) as usize;
+            // PHR contains length of the packet in the low 7 bits, MSB
+            // indicates if this packet is a 802.11.4 packet or not
+            // 16-bit CRC has been removed, 1 octet LQI has been added to the end
+            if length > 0 && (phr & 0x80) == 0 {
+                buffer[0] = phr & 0x7f;
+                buffer[1..=length].copy_from_slice(&self.buffer[1..=length]);
+                return length;
+            }
+        }
+        if self.radio.events_ready.read().events_ready().bit_is_set() {
+            self.radio.events_ready.reset();
+            let buffer_ptr = &mut self.buffer as *mut _ as u32;
+            self.radio
+                .packetptr
+                .write(|w| unsafe { w.bits(buffer_ptr) });
+        }
+        if self
+            .radio
+            .events_ccabusy
+            .read()
+            .events_ccabusy()
+            .bit_is_set()
+        {
+            self.radio.events_ccabusy.reset();
+            hprintln!("CCABUSY").unwrap();
+            self.receive_prepare();
+        }
+        0
+    }
+
+    pub fn receive_slice(&mut self, buffer: &mut [u8]) -> usize {
+        assert!(buffer.len() >= MAX_PACKET_LENGHT);
+        // PHYEND event signal
+        if self.radio.events_phyend.read().events_phyend().bit_is_set() {
+            // Clear interrupt
+            self.radio.events_phyend.reset();
+            // Re-enable receive after sending a packet
+            if self.radio.state.read().state().is_tx_idle() {
+                self.radio.shorts.reset();
+                self.radio
+                    .shorts
+                    .write(|w| w.rxready_start().enabled().phyend_start().enabled());
+                self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
+            }
 
             let phr = self.buffer[0];
             // Clear PHR so we do not read old data next time
@@ -652,10 +525,6 @@ impl Radio {
                 .txready_start()
                 .enabled()
                 .ccabusy_disable()
-                .enabled()
-                .phyend_disable()
-                .enabled()
-                .disabled_rxen()
                 .enabled()
         });
         // Start task

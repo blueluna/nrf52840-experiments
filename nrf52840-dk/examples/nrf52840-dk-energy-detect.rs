@@ -87,7 +87,6 @@ const APP: () = {
             *resources.CHANNEL = channel;
             radio.start_energy_detect(65536);
         } else {
-            radio.print_interrupt();
             match radio.state() {
                 STATER::DISABLED => {
                     hprintln!("DISABLED").unwrap();
