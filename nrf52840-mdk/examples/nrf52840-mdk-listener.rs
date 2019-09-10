@@ -7,6 +7,8 @@ use panic_semihosting;
 use cortex_m_semihosting::hprintln;
 use rtfm::app;
 
+use bbqueue::{self, bbq, BBQueue};
+
 use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
 
 use nrf52840_pac as pac;
@@ -23,6 +25,8 @@ const APP: () = {
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
     static mut TIMER: pac::TIMER1 = ();
+    static mut RX_PRODUCER: bbqueue::Producer = ();
+    static mut RX_CONSUMER: bbqueue::Consumer = ();
 
     #[init]
     fn init() {
@@ -46,9 +50,12 @@ const APP: () = {
             uarte::Baudrate::BAUD115200,
         );
 
+        let bb_queue = bbq![MAX_PACKET_LENGHT * 8].unwrap();
+        let (q_producer, q_consumer) = bb_queue.split();
+
         let mut timer1 = device.TIMER1;
         timer1.init();
-        timer1.fire_at(1, 10_000_000);
+        timer1.fire_at(1, 60_000_000);
 
         let mut radio = Radio::new(device.RADIO);
         radio.set_channel(11);
@@ -60,87 +67,67 @@ const APP: () = {
         RADIO = radio;
         UARTE = uarte0;
         TIMER = timer1;
+        RX_PRODUCER = q_producer;
+        RX_CONSUMER = q_consumer;
     }
 
-    #[interrupt(resources = [LED_1, LED_2, RADIO, TIMER, UARTE],)]
+    #[interrupt(resources = [LED_1, LED_2, RADIO, TIMER, RX_PRODUCER],)]
     fn RADIO() {
-        let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
-        let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
-        let mut radio = resources.RADIO;
+        let radio = resources.RADIO;
         let mut timer = resources.TIMER;
-        let mut uarte = resources.UARTE;
+        let queue = resources.RX_PRODUCER;
 
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
 
-        let packet_len = radio.receive(&mut packet);
-        if packet_len > 0 {
-            match esercom::com_encode(
-                esercom::MessageType::RadioReceive,
-                &packet[1..packet_len],
-                &mut host_packet,
-            ) {
-                Ok(written) => {
-                    uarte.write(&host_packet[..written]).unwrap();
+        match queue.grant(MAX_PACKET_LENGHT) {
+            Ok(mut grant) => {
+                let packet_len = radio.receive_slice(grant.buf());
+                if packet_len > 0 {
+                    queue.commit(packet_len, grant);
+                    (*resources.LED_2).set_low();
+                } else {
+                    queue.commit(0, grant);
                 }
-                Err(_) => {
-                    hprintln!("Failed to encode packet").unwrap();
-                }
-            }
-            (*resources.LED_2).set_low();
-        }
-        let state = radio.state();
-        let events = radio.events();
-        packet[0] = state.bits();
-        packet[1] = events as u8;
-        packet[2] = (events >> 8) as u8;
-        packet[3] = (events >> 16) as u8;
-        packet[4] = (events >> 24) as u8;
-        match esercom::com_encode(
-            esercom::MessageType::RadioState,
-            &packet[..5],
-            &mut host_packet,
-        ) {
-            Ok(written) => {
-                uarte.write(&host_packet[..written]).unwrap();
             }
             Err(_) => {
-                hprintln!("Failed to encode radio state packet").unwrap();
+                hprintln!("Failed to queue packet").unwrap();
             }
         }
-        timer.fire_at(1, 10_000_000);
+        timer.fire_at(1, 60_000_000);
     }
 
-    #[interrupt(resources = [RADIO, TIMER, UARTE],)]
+    #[interrupt(resources = [TIMER],)]
     fn TIMER1() {
-        let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
-        let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
-        let mut radio = resources.RADIO;
+        hprintln!("Timeout").unwrap();
         let mut timer = resources.TIMER;
-        let mut uarte = resources.UARTE;
-
         timer.ack_compare_event(1);
+        timer.fire_at(1, 60_000_000);
+    }
 
-        let state = radio.state();
-        let events = radio.events();
-        packet[0] = state.bits();
-        packet[1] = events as u8;
-        packet[2] = (events >> 8) as u8;
-        packet[3] = (events >> 16) as u8;
-        packet[4] = (events >> 24) as u8;
-        match esercom::com_encode(
-            esercom::MessageType::RadioState,
-            &packet[..5],
-            &mut host_packet,
-        ) {
-            Ok(written) => {
-                uarte.write(&host_packet[..written]).unwrap();
-            }
-            Err(_) => {
-                hprintln!("Failed to encode radio state packet").unwrap();
+    #[idle(resources = [RX_CONSUMER, UARTE])]
+    fn idle() -> ! {
+        let mut host_packet = [0u8; MAX_PACKET_LENGHT * 2];
+        let queue = resources.RX_CONSUMER;
+        let uarte = resources.UARTE;
+
+        loop {
+            if let Ok(grant) = queue.read() {
+                let packet_length = grant[0] as usize;
+                match esercom::com_encode(
+                    esercom::MessageType::RadioReceive,
+                    &grant[1..packet_length],
+                    &mut host_packet,
+                ) {
+                    Ok(written) => {
+                        uarte.write(&host_packet[..written]).unwrap();
+                    }
+                    Err(_) => {
+                        hprintln!("Failed to encode packet").unwrap();
+                    }
+                }
+                queue.release(packet_length, grant);
             }
         }
-
-        timer.fire_at(1, 10_000_000);
     }
 };

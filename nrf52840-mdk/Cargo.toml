@@ -15,3 +15,4 @@ cortex-m-rtfm = "0.4"
 ieee802154 = "0.3"
 esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch = "master" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
+bbqueue = { git = "https://github.com/jamesmunns/bbqueue" }
