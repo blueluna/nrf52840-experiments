@@ -19,7 +19,6 @@ pub const BLOCK_SIZE: usize = 16;
 
 pub const ECB_BLOCK_SIZE: usize = KEY_SIZE + BLOCK_SIZE + BLOCK_SIZE;
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum SecurityError {
     ResourceConflict,
@@ -38,23 +37,29 @@ impl Aes128Ecb {
         }
     }
 
-    pub fn set_key(&mut self, key: &[u8]) -> Result<(), SecurityError>
-    {
+    pub fn set_key(&mut self, key: &[u8]) -> Result<(), SecurityError> {
         assert!(key.len() == KEY_SIZE);
         self.buffer[..KEY_SIZE].copy_from_slice(&key);
         Ok(())
     }
 
-    pub fn process(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), SecurityError>
-    {
+    pub fn process(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), SecurityError> {
         assert!(input.len() == BLOCK_SIZE);
         assert!(output.len() == BLOCK_SIZE);
         self.buffer[KEY_SIZE..KEY_SIZE + BLOCK_SIZE].copy_from_slice(input);
         let data_ptr = &mut self.buffer as *mut _ as u32;
         self.ecb.ecbdataptr.write(|w| unsafe { w.bits(data_ptr) });
-        self.ecb.tasks_startecb.write(|w| w.tasks_startecb().set_bit());
+        self.ecb
+            .tasks_startecb
+            .write(|w| w.tasks_startecb().set_bit());
         loop {
-            if self.ecb.events_errorecb.read().events_errorecb().bit_is_set() {
+            if self
+                .ecb
+                .events_errorecb
+                .read()
+                .events_errorecb()
+                .bit_is_set()
+            {
                 return Err(SecurityError::ResourceConflict);
             }
             if self.ecb.events_endecb.read().events_endecb().bit_is_set() {
@@ -72,131 +77,99 @@ pub struct SecurityService {
 
 impl SecurityService {
     pub fn new(cipher: Aes128Ecb) -> Self {
-        Self {
-            cipher,
-        }
+        Self { cipher }
     }
 
-    fn hash_process_block(&mut self, input: &[u8], mut output: &mut [u8], ) -> Result<(), SecurityError> {
-        self.cipher.set_key(output)?;
-        self.cipher.process(input, &mut output)?;
-        /* Now we have to XOR the input into the hash block. */
+    /// Process a block for the Key-hash hash function
+    fn hash_key_process_block(
+        &mut self,
+        input: &[u8],
+        mut output: &mut [u8],
+    ) -> Result<(), SecurityError> {
+        self.cipher.set_key(&output)?;
+        self.cipher.process(&input, &mut output)?;
+        // XOR the input into the hash block
         for n in 0..BLOCK_SIZE {
             output[n] ^= input[n];
         }
         Ok(())
     }
 
+    /// Key-hash hash function
+    fn hash_key_hash(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), SecurityError> {
+        assert!(input.len() < 4096);
 
-    pub fn hash(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), SecurityError> {
-        /* Cipher Instance. */
-        let mut block = [0u8; BLOCK_SIZE];
-
-        /* Clear the first hash block (Hash0). */
-        for output_byte in &mut output[..BLOCK_SIZE] {
-            *output_byte = 0;
+        // Clear the first block of output
+        for b in output[..BLOCK_SIZE].iter_mut() {
+            *b = 0;
         }
 
-        /* Create the subsequent hash blocks using the formula: Hash[i] = E(Hash[i-1], M[i]) XOR M[i]
-         *
-         * because we can't guarantee that M will be exactly a multiple of the
-         * block size, we will need to copy it into local buffers and pad it.
-         *
-         * Note that we check for the next cipher block at the end of the loop
-         * rather than the start. This is so that if the input happens to end
-         * on a block boundary, the next cipher block will be generated for the
-         * start of the padding to be placed into.
-         */
-        let mut j = 0;
-        for input_byte in input.iter() {
-            /* Copy data into the cipher input. */
-            block[j] = *input_byte;
-            j += 1;
-            /* Check if this cipher block is done. */
-            if j >= BLOCK_SIZE {
-                /* We have reached the end of this block. Process it with the
-                 * cipher, note that the Key input to the cipher is actually
-                 * the previous hash block, which we are keeping in output.
-                 */
-                self.hash_process_block(&block, &mut output[0..BLOCK_SIZE])?;
-                /* Reset j to start again at the beginning at the next block. */
-                j = 0;
+        let mut blocks = input.chunks_exact(BLOCK_SIZE);
+
+        // Process input data in cipher block sized chunks
+        loop {
+            match blocks.next() {
+                Some(input_block) => {
+                    self.hash_key_process_block(&input_block, &mut output[..BLOCK_SIZE])?;
+                }
+                None => {
+                    let mut block = [0u8; BLOCK_SIZE];
+                    let remainder = blocks.remainder();
+                    assert!(remainder.len() < BLOCK_SIZE - 3);
+                    block[..remainder.len()].copy_from_slice(remainder);
+                    block[remainder.len()] = 0x80;
+                    let input_len = input.len() as u16 * 8;
+                    // Append the data length to the end
+                    block[BLOCK_SIZE - 2] = (input_len >> 8) as u8;
+                    block[BLOCK_SIZE - 1] = (input_len & 0xff) as u8;
+                    self.hash_key_process_block(&block, &mut output[..BLOCK_SIZE])?;
+                    break;
+                }
             }
         }
-        /* Need to append the bit '1', followed by '0' padding long enough to end
-         * the hash input on a block boundary. However, because 'n' is 16, and 'l'
-         * will be a multiple of 8, the padding will be >= 7-bits, and we can just
-         * append the byte 0x80.
-         */
-        block[j] = 0x80;
-        j += 1;
-        /* Pad with '0' until the the current block is exactly 'n' bits from the
-         * end.
-         */
-        while j != (BLOCK_SIZE - 2) {
-            if j >= BLOCK_SIZE {
-                /* We have reached the end of this block. Process it with the
-                 * cipher, note that the Key input to the cipher is actually
-                 * the previous hash block, which we are keeping in output.
-                 */
-                self.hash_process_block(&block, &mut output[0..BLOCK_SIZE])?;
-                /* Reset j to start again at the beginning at the next block. */
-                j = 0;
-            }
-            /* Pad the input with 0. */
-            block[j] = 0x00;
-            j += 1;
-        }
-        let input_len = input.len() as u16 * 8;
-        /* Add the 'n'-bit representation of 'l' to the end of the block. */
-        block[j] = (input_len >> 8) as u8;
-        j += 1;
-        block[j] = (input_len & 0xff) as u8;
-        /* Process the last cipher block. */
-        self.hash_process_block(&block, &mut output[0..BLOCK_SIZE])?;
-        /* Cleanup the cipher. */
-        /* Done */
         Ok(())
     }
 
-    pub fn keyed_hash(&mut self, key: &[u8; KEY_SIZE], input: u8, result: &mut [u8]) -> Result<(), SecurityError> {
+    /// FIPS Pub 198 HMAC
+    pub fn hash_key(
+        &mut self,
+        key: &[u8; KEY_SIZE],
+        input: u8,
+        result: &mut [u8],
+    ) -> Result<(), SecurityError> {
         const HASH_INNER_PAD: u8 = 0x36;
         const HASH_OUTER_PAD: u8 = 0x5c;
         let mut hash_in = [0; BLOCK_SIZE * 2];
         let mut hash_out = [0; BLOCK_SIZE + 1];
-
         {
-            /* Copy the key into hash_in and XOR with opad to form: (Key XOR opad) */
+            // XOR the key with the outer padding
             for n in 0..KEY_SIZE {
                 hash_in[n] = key[n] ^ HASH_OUTER_PAD;
             }
-
-            /* Copy the Key into hash_out and XOR with ipad to form: (Key XOR ipad) */
+            // XOR the key with the inner padding
             for n in 0..KEY_SIZE {
                 hash_out[n] = key[n] ^ HASH_INNER_PAD;
             }
-
-            /* Append the input byte to form: (Key XOR ipad) || text. */
+            // Append the input byte
             hash_out[BLOCK_SIZE] = input;
-
-            /* Hash the contents of hash_out and append the contents to hash_in to
-             * form: (Key XOR opad) || H((Key XOR ipad) || text).
-             */
-            self.hash(&hash_out[..=BLOCK_SIZE], &mut hash_in[BLOCK_SIZE..])?;
-
-            /* Hash the contents of hash_in to get the final result. */
-            self.hash(&hash_in, &mut hash_out)?;
+            // Hash hash_out to form (Key XOR opad) || H((Key XOR ipad) || text)
+            self.hash_key_hash(&hash_out[..=BLOCK_SIZE], &mut hash_in[BLOCK_SIZE..])?;
+            // Hash hash_in to get the result
+            self.hash_key_hash(&hash_in, &mut hash_out)?;
         }
-
         {
+            // Take the key
             let (output_key, _) = result.split_at_mut(KEY_SIZE);
             output_key.copy_from_slice(&hash_out[..KEY_SIZE]);
         }
-
         Ok(())
     }
 }
 
+/// Default link key, "ZigBeeAlliance09"
+pub const DEFAULT_LINK_KEY: [u8; KEY_SIZE] = [
+    0x5a, 0x69, 0x67, 0x42, 0x65, 0x65, 0x41, 0x6c, 0x6c, 0x69, 0x61, 0x6e, 0x63, 0x65, 0x30, 0x39,
+];
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
@@ -228,13 +201,35 @@ const APP: () = {
             0x4E, 0x4F,
         ];
         let mut calculated = [0; BLOCK_SIZE];
-        security_service.keyed_hash(&key, 0xc0, &mut calculated).unwrap();
-        if calculated ==  [ 0x45, 0x12, 0x80, 0x7B, 0xF9, 0x4C, 0xB3, 0x40, 0x0F, 0x0E, 0x2C, 0x25, 0xFB, 0x76, 0xE9, 0x99 ] {
-            hprintln!("Test succeded").unwrap();
+
+        security_service
+            .hash_key(&key, 0xc0, &mut calculated)
+            .unwrap();
+        if calculated
+            == [
+                0x45, 0x12, 0x80, 0x7B, 0xF9, 0x4C, 0xB3, 0x40, 0x0F, 0x0E, 0x2C, 0x25, 0xFB, 0x76,
+                0xE9, 0x99,
+            ]
+        {
+            hprintln!("Test 1 succeded").unwrap();
+        } else {
+            hprintln!("Test 1 failed").unwrap();
         }
-        else {
-            hprintln!("Test failed").unwrap();
+
+        security_service
+            .hash_key(&DEFAULT_LINK_KEY, 0x00, &mut calculated)
+            .unwrap();
+        if calculated
+            == [
+                0x4b, 0xab, 0x0f, 0x17, 0x3e, 0x14, 0x34, 0xa2, 0xd5, 0x72, 0xe1, 0xc1, 0xef, 0x47,
+                0x87, 0x82,
+            ]
+        {
+            hprintln!("Test 2 succeded").unwrap();
+        } else {
+            hprintln!("Test 2 failed").unwrap();
         }
+
         loop {}
     }
 };
