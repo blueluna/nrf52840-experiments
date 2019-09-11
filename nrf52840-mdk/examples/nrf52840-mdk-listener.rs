@@ -16,7 +16,6 @@ use nrf52840_pac as pac;
 use esercom;
 
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
-use nrf52_radio_802154::timer::Timer;
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
@@ -24,7 +23,6 @@ const APP: () = {
     static mut LED_2: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
-    static mut TIMER: pac::TIMER1 = ();
     static mut RX_PRODUCER: bbqueue::Producer = ();
     static mut RX_CONSUMER: bbqueue::Consumer = ();
 
@@ -53,10 +51,6 @@ const APP: () = {
         let bb_queue = bbq![MAX_PACKET_LENGHT * 8].unwrap();
         let (q_producer, q_consumer) = bb_queue.split();
 
-        let mut timer1 = device.TIMER1;
-        timer1.init();
-        timer1.fire_at(1, 60_000_000);
-
         let mut radio = Radio::new(device.RADIO);
         radio.set_channel(11);
         radio.set_transmission_power(8);
@@ -66,15 +60,13 @@ const APP: () = {
         LED_2 = p0.p0_23.degrade().into_push_pull_output(gpio::Level::High);
         RADIO = radio;
         UARTE = uarte0;
-        TIMER = timer1;
         RX_PRODUCER = q_producer;
         RX_CONSUMER = q_consumer;
     }
 
-    #[interrupt(resources = [LED_1, LED_2, RADIO, TIMER, RX_PRODUCER],)]
+    #[interrupt(resources = [LED_1, LED_2, RADIO, RX_PRODUCER],)]
     fn RADIO() {
         let radio = resources.RADIO;
-        let mut timer = resources.TIMER;
         let queue = resources.RX_PRODUCER;
 
         (*resources.LED_1).set_high();
@@ -94,15 +86,6 @@ const APP: () = {
                 hprintln!("Failed to queue packet").unwrap();
             }
         }
-        timer.fire_at(1, 60_000_000);
-    }
-
-    #[interrupt(resources = [TIMER],)]
-    fn TIMER1() {
-        hprintln!("Timeout").unwrap();
-        let mut timer = resources.TIMER;
-        timer.ack_compare_event(1);
-        timer.fire_at(1, 60_000_000);
     }
 
     #[idle(resources = [RX_CONSUMER, UARTE])]
