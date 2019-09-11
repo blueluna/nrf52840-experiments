@@ -1,0 +1,19 @@
+[package]
+name = "nrf52-cryptocell"
+version = "0.0.1"
+authors = ["Erik Svensson <erik.public@gmail.com>"]
+categories = [ "hardware-support", "embedded", "no-std", ]
+description = "nRF52840 TrustZone CryptoCell 310 interface"
+keywords = [ "nrf52840", "nrf52", "TrustZone", "CryptoCell" ]
+license = "MIT"
+readme = "README.md"
+repository="https://github.com/blueluna/nrf52840-dk-experiments"
+edition = "2018"
+
+[dependencies]
+cty = "0.2.0"
+nrf52840-pac = "0.8"
+cortex-m-semihosting = "0.3"
+
+[build-dependencies]
+bindgen = "0.51.0"
