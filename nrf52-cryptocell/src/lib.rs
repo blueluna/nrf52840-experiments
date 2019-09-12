@@ -35,8 +35,7 @@ extern "C" {
     ) -> nrf_cc310::CRYSError_t;
 }
 
-pub struct CryptoCell
-{
+pub struct CryptoCell {
     cc: CRYPTOCELL,
 }
 
@@ -60,8 +59,9 @@ impl CryptoCell {
         additional_data: &[u8],
         message_output: &mut [u8],
     ) -> Result<(), Error> {
+        let message_len = (message.len() - mic_length) as u32;
         let result = unsafe {
-            let mac_res_ptr: *mut u8 = core::ptr::null_mut();
+            let mut mac_res = [0u8; 16];
             CC_AESCCM(
                 nrf_cc310::SaSiAesEncryptMode_t_SASI_AES_DECRYPT,
                 key.as_ptr(),
@@ -71,10 +71,10 @@ impl CryptoCell {
                 additional_data.as_ptr(),
                 additional_data.len() as u32,
                 message.as_ptr(),
-                message.len() as u32,
+                message_len,
                 message_output.as_mut_ptr(),
                 mic_length as u8,
-                mac_res_ptr,
+                mac_res.as_mut_ptr(),
                 nrf_cc310::CRYS_AESCCM_MODE_STAR,
             )
         };

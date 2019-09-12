@@ -11,6 +11,8 @@ use nrf52840_hal::{clocks, prelude::*};
 
 use nrf52840_pac as pac;
 
+use nrf52_cryptocell::{self, CryptoCell};
+
 /// Key length
 pub const KEY_SIZE: usize = 16;
 
@@ -174,6 +176,7 @@ pub const DEFAULT_LINK_KEY: [u8; KEY_SIZE] = [
 #[app(device = nrf52840_pac)]
 const APP: () = {
     static mut SECURITY_SERVICE: SecurityService = ();
+    static mut CRYPTOCELL: CryptoCell = ();
 
     #[init]
     fn init() {
@@ -188,12 +191,16 @@ const APP: () = {
         let aes128_ecb = Aes128Ecb::new(device.ECB);
         let security_service = SecurityService::new(aes128_ecb);
 
+        let cryptocell = CryptoCell::new(device.CRYPTOCELL);
+
         SECURITY_SERVICE = security_service;
+        CRYPTOCELL = cryptocell;
     }
 
-    #[idle(resources = [SECURITY_SERVICE])]
+    #[idle(resources = [SECURITY_SERVICE, CRYPTOCELL])]
     fn idle() -> ! {
         let mut security_service = resources.SECURITY_SERVICE;
+        let mut cryptocell = resources.CRYPTOCELL;
 
         // C.6.1 Test Vector Set 1
         let key = [
@@ -216,6 +223,7 @@ const APP: () = {
             hprintln!("Test 1 failed").unwrap();
         }
 
+        // Test hashing of default link key, as used in key transport
         security_service
             .hash_key(&DEFAULT_LINK_KEY, 0x00, &mut calculated)
             .unwrap();
@@ -228,6 +236,42 @@ const APP: () = {
             hprintln!("Test 2 succeded").unwrap();
         } else {
             hprintln!("Test 2 failed").unwrap();
+        }
+
+        let key = [
+            0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD,
+            0xCE, 0xCF,
+        ];
+        let nonce = [
+            0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0x03, 0x02, 0x01, 0x00, 0x06,
+        ];
+        let message = [
+            0x1A, 0x55, 0xA3, 0x6A, 0xBB, 0x6C, 0x61, 0x0D, 0x06, 0x6B, 0x33, 0x75, 0x64, 0x9C,
+            0xEF, 0x10, 0xD4, 0x66, 0x4E, 0xCA, 0xD8, 0x54, 0xA8, 0x0A, 0x89, 0x5C, 0xC1, 0xD8,
+            0xFF, 0x94, 0x69,
+        ];
+        let additional_data = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
+        // M, length of the authentication field in octets 0, 4, 6, 8, 10, 12, 14, 16
+        const MIC_LENGTH: usize = 8;
+        let mut output = [0u8; 64];
+
+        match cryptocell.aes128_ccm_star_decrypt(
+            &key,
+            &nonce,
+            &message,
+            MIC_LENGTH,
+            &additional_data,
+            &mut output,
+        ) {
+            Ok(_) => {
+                hprintln!("CCM Test 1 succeded").unwrap();
+            }
+            Err(e) => {
+                hprintln!("CCM Test 1 failed").unwrap();
+                if let nrf52_cryptocell::Error::CryptoCellError(errno) = e {
+                    hprintln!("CC Error {}", errno).unwrap();
+                }
+            }
         }
 
         loop {}
