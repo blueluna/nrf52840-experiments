@@ -38,7 +38,7 @@
 // #include "nrf_cc310/include/crys_poly_error.h"
 // #include "nrf_cc310/include/crys_poly.h"
 // #include "nrf_cc310/include/crys_rnd_error.h"
-// #include "nrf_cc310/include/crys_rnd.h"
+#include "nrf_cc310/include/crys_rnd.h"
 // #include "nrf_cc310/include/crys_rsa_build.h"
 // #include "nrf_cc310/include/crys_rsa_error.h"
 // #include "nrf_cc310/include/crys_rsa_kg.h"

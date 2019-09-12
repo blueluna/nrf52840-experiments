@@ -39,12 +39,19 @@ pub struct CryptoCell {
     cc: CRYPTOCELL,
 }
 
+impl core::ops::Drop for CryptoCell {
+    fn drop(&mut self) {
+        unsafe { nrf_cc310::SaSi_LibFini() }
+        self.cc.enable.write(|w| w.enable().clear_bit());
+    }
+}
+
 impl CryptoCell {
     pub fn new(cc: CRYPTOCELL) -> Self {
         cc.enable.write(|w| w.enable().set_bit());
 
         if unsafe { nrf_cc310::SaSi_LibInit() } != nrf_cc310::SA_SilibRetCode_t_SA_SILIB_RET_OK {
-            panic!("Failed to initialize library");
+            panic!("Failed to initialize SaSi library");
         }
 
         Self { cc }
@@ -60,8 +67,9 @@ impl CryptoCell {
         message_output: &mut [u8],
     ) -> Result<(), Error> {
         let message_len = (message.len() - mic_length) as u32;
+        let mut mic_result = [0u8; 16];
+        mic_result[..mic_length].copy_from_slice(&message[message_len as usize..]);
         let result = unsafe {
-            let mut mac_res = [0u8; 16];
             CC_AESCCM(
                 nrf_cc310::SaSiAesEncryptMode_t_SASI_AES_DECRYPT,
                 key.as_ptr(),
@@ -74,7 +82,7 @@ impl CryptoCell {
                 message_len,
                 message_output.as_mut_ptr(),
                 mic_length as u8,
-                mac_res.as_mut_ptr(),
+                mic_result.as_mut_ptr(),
                 nrf_cc310::CRYS_AESCCM_MODE_STAR,
             )
         };
