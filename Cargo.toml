@@ -1,2 +1,11 @@
 [workspace]
 members = ["nrf52-cryptocell", "nrf52-radio-802154", "nrf52840-dk", "nrf52840-dongle", "nrf52840-mdk"]
+
+[profile.dev]
+opt-level = "s"
+
+[profile.release]
+opt-level = "s"
+debug = false
+lto = true
+codegen-units = 1

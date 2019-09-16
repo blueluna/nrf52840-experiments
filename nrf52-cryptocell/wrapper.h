@@ -51,7 +51,7 @@
 #include "nrf_cc310/include/sns_silib.h"
 // #include "nrf_cc310/include/ssi_aes_defs.h"
 // #include "nrf_cc310/include/ssi_aes_error.h"
-// #include "nrf_cc310/include/ssi_aes.h"
+#include "nrf_cc310/include/ssi_aes.h"
 // #include "nrf_cc310/include/ssi_bitops.h"
 // #include "nrf_cc310/include/ssi_pal_abort.h"
 // #include "nrf_cc310/include/ssi_pal_barrier.h"

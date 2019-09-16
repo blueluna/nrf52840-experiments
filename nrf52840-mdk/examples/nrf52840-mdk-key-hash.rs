@@ -4,7 +4,7 @@
 #[allow(unused_imports)]
 use panic_semihosting;
 
-use cortex_m_semihosting::hprintln;
+use cortex_m_semihosting::{hprint, hprintln};
 use rtfm::app;
 
 use nrf52840_hal::{clocks, prelude::*};
@@ -74,11 +74,11 @@ impl Aes128Ecb {
 }
 
 pub struct SecurityService {
-    cipher: Aes128Ecb,
+    cipher: nrf52_cryptocell::AesContext,
 }
 
 impl SecurityService {
-    pub fn new(cipher: Aes128Ecb) -> Self {
+    pub fn new(cipher: nrf52_cryptocell::AesContext) -> Self {
         Self { cipher }
     }
 
@@ -87,9 +87,15 @@ impl SecurityService {
         &mut self,
         input: &[u8],
         mut output: &mut [u8],
-    ) -> Result<(), SecurityError> {
-        self.cipher.set_key(&output)?;
-        self.cipher.process(&input, &mut output)?;
+        finish: bool,
+    ) -> Result<(), nrf52_cryptocell::Error> {
+        self.cipher.set_key(output)?;
+        if finish {
+            self.cipher.finish(&input, &mut output)?;
+        }
+        else {
+            self.cipher.process_block(&input, &mut output)?;
+        }
         // XOR the input into the hash block
         for n in 0..BLOCK_SIZE {
             output[n] ^= input[n];
@@ -98,7 +104,7 @@ impl SecurityService {
     }
 
     /// Key-hash hash function
-    fn hash_key_hash(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), SecurityError> {
+    fn hash_key_hash(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), nrf52_cryptocell::Error> {
         assert!(input.len() < 4096);
 
         // Clear the first block of output
@@ -112,7 +118,7 @@ impl SecurityService {
         loop {
             match blocks.next() {
                 Some(input_block) => {
-                    self.hash_key_process_block(&input_block, &mut output[..BLOCK_SIZE])?;
+                    self.hash_key_process_block(&input_block, &mut output[..BLOCK_SIZE], false)?;
                 }
                 None => {
                     let mut block = [0u8; BLOCK_SIZE];
@@ -124,7 +130,7 @@ impl SecurityService {
                     // Append the data length to the end
                     block[BLOCK_SIZE - 2] = (input_len >> 8) as u8;
                     block[BLOCK_SIZE - 1] = (input_len & 0xff) as u8;
-                    self.hash_key_process_block(&block, &mut output[..BLOCK_SIZE])?;
+                    self.hash_key_process_block(&block, &mut output[..BLOCK_SIZE], true)?;
                     break;
                 }
             }
@@ -132,24 +138,22 @@ impl SecurityService {
         Ok(())
     }
 
-    /// FIPS Pub 198 HMAC
+    /// FIPS Pub 198 HMAC?
     pub fn hash_key(
         &mut self,
         key: &[u8; KEY_SIZE],
         input: u8,
         result: &mut [u8],
-    ) -> Result<(), SecurityError> {
+    ) -> Result<(), nrf52_cryptocell::Error> {
         const HASH_INNER_PAD: u8 = 0x36;
         const HASH_OUTER_PAD: u8 = 0x5c;
         let mut hash_in = [0; BLOCK_SIZE * 2];
         let mut hash_out = [0; BLOCK_SIZE + 1];
         {
-            // XOR the key with the outer padding
             for n in 0..KEY_SIZE {
+                // XOR the key with the outer padding
                 hash_in[n] = key[n] ^ HASH_OUTER_PAD;
-            }
-            // XOR the key with the inner padding
-            for n in 0..KEY_SIZE {
+                // XOR the key with the inner padding
                 hash_out[n] = key[n] ^ HASH_INNER_PAD;
             }
             // Append the input byte
@@ -175,7 +179,6 @@ pub const DEFAULT_LINK_KEY: [u8; KEY_SIZE] = [
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
-    static mut SECURITY_SERVICE: SecurityService = ();
     static mut CRYPTOCELL: CryptoCell = ();
 
     #[init]
@@ -188,55 +191,14 @@ const APP: () = {
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
-        let aes128_ecb = Aes128Ecb::new(device.ECB);
-        let security_service = SecurityService::new(aes128_ecb);
-
         let cryptocell = CryptoCell::new(device.CRYPTOCELL);
 
-        SECURITY_SERVICE = security_service;
         CRYPTOCELL = cryptocell;
     }
 
-    #[idle(resources = [SECURITY_SERVICE, CRYPTOCELL])]
+    #[idle(resources = [CRYPTOCELL])]
     fn idle() -> ! {
-        let mut security_service = resources.SECURITY_SERVICE;
         let mut cryptocell = resources.CRYPTOCELL;
-
-        // C.6.1 Test Vector Set 1
-        let key = [
-            0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D,
-            0x4E, 0x4F,
-        ];
-        let mut calculated = [0; BLOCK_SIZE];
-
-        security_service
-            .hash_key(&key, 0xc0, &mut calculated)
-            .unwrap();
-        if calculated
-            == [
-                0x45, 0x12, 0x80, 0x7B, 0xF9, 0x4C, 0xB3, 0x40, 0x0F, 0x0E, 0x2C, 0x25, 0xFB, 0x76,
-                0xE9, 0x99,
-            ]
-        {
-            hprintln!("Test 1 succeded").unwrap();
-        } else {
-            hprintln!("Test 1 failed").unwrap();
-        }
-
-        // Test hashing of default link key, as used in key transport
-        security_service
-            .hash_key(&DEFAULT_LINK_KEY, 0x00, &mut calculated)
-            .unwrap();
-        if calculated
-            == [
-                0x4b, 0xab, 0x0f, 0x17, 0x3e, 0x14, 0x34, 0xa2, 0xd5, 0x72, 0xe1, 0xc1, 0xef, 0x47,
-                0x87, 0x82,
-            ]
-        {
-            hprintln!("Test 2 succeded").unwrap();
-        } else {
-            hprintln!("Test 2 failed").unwrap();
-        }
 
         let key = [
             0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD,
@@ -279,6 +241,56 @@ const APP: () = {
             }
         }
 
+        match CryptoCell::aes128_ecb_encrypt() {
+            Ok(cipher) => {
+                // C.6.1 Test Vector Set 1
+                let mut ss = SecurityService::new(cipher);
+                let key = [
+                    0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D,
+                    0x4E, 0x4F,
+                ];
+                let mut calculated = [0; BLOCK_SIZE];
+                ss.hash_key(&key, 0xc0, &mut calculated).unwrap();
+                if calculated
+                    == [
+                        0x45, 0x12, 0x80, 0x7B, 0xF9, 0x4C, 0xB3, 0x40, 0x0F, 0x0E, 0x2C, 0x25, 0xFB, 0x76,
+                        0xE9, 0x99,
+                    ]
+                {
+                    hprintln!("AES ECB Test 1 succeded").unwrap();
+                } else {
+                    hprintln!("AES ECB Test 1 failed").unwrap();
+                    for b in calculated.iter() {
+                        hprint!("{:02x}", b).unwrap();
+                    }
+                    hprintln!().unwrap();
+                    
+                }
+
+                ss.hash_key(&DEFAULT_LINK_KEY, 0x00, &mut calculated).unwrap();
+                if calculated
+                    == [
+                        0x4b, 0xab, 0x0f, 0x17, 0x3e, 0x14, 0x34, 0xa2, 0xd5, 0x72, 0xe1, 0xc1, 0xef, 0x47,
+                        0x87, 0x82,
+                    ]
+                {
+                    hprintln!("AES ECB Test 2 succeded").unwrap();
+                } else {
+                    hprintln!("AES ECB Test 2 failed").unwrap();
+                    for b in calculated.iter() {
+                        hprint!("{:02x}", b).unwrap();
+                    }
+                    hprintln!().unwrap();
+                }
+            }
+            Err(e) => {
+                hprintln!("AES ECB Test 1 failed").unwrap();
+                if let nrf52_cryptocell::Error::CryptoCellError(errno) = e {
+                    hprintln!("CC Error {:08x}", errno).unwrap();
+                }
+            }
+        }
+        
         loop {}
     }
 };
