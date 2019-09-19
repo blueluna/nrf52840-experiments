@@ -3,51 +3,70 @@
 #![no_std]
 
 use nrf52840_pac::CRYPTOCELL;
+pub use psila_crypto_trait::{CryptoBackend, Error};
 
 /// Key length
 pub const KEY_SIZE: usize = 16;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Error {
-    CryptoCellError(u32),
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub enum EncryptDecrypt {
+    /// Encryp operation
     Encrypt = 0,
+    /// Decryp operation
     Decrypt = 1,
 }
 
+/// Block cipher key type
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeyType {
+    /// 128-bit AES key
     Aes128 = 0,
+    /// 192-bit AES key
     Aes192 = 1,
+    /// 256-bit AES key
     Aes256 = 2,
+    /// 512-bit AES key
     Aes512 = 3,
 }
 
+/// Block cipher operation mode
 #[derive(Clone, Debug, PartialEq)]
 pub enum AesOperationMode {
+    /// Electronic codebook
     Ecb = 0,
+    /// Chiper block chaining
     Cbc = 1,
+    /// Chiper block chaining - message authentication code
     CbcMac = 2,
+    /// Counter
     Ctr = 3,
+    /// Chiper block chaining - message authentication code with extras
     XCbcMac = 4,
+    /// Cipher-based message authentication code
     CMac = 5,
+    /// XEX with tweak and ciphertext stealing
     Xts = 6,
+    /// Chiper block chaining with ciphertext stealing
     CbcCts = 7,
+    /// Output feed-back
     Ofb = 8,
 }
 
+/// Padding type
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaddingType {
+    /// None, padded with zeroes
     None = 0,
+    /// PKCS7 padding
     Pkcs7 = 1,
 }
 
+/// CCM-mode
 #[derive(Clone, Debug, PartialEq)]
 pub enum CcmMode {
+    /// CCM
     Ccm = 0,
+    /// CCM*
     CcmStar = 1,
 }
 
@@ -129,6 +148,8 @@ extern "C" {
         // Size of the key struct
         keyDataSize: usize,
     ) -> u32;
+    fn SaSi_AesSetIv(context: *mut CryptoCellAesContext, iv: *const u8) -> u32;
+    fn SaSi_AesGetIv(context: *mut CryptoCellAesContext, iv: *mut u8) -> u32;
     /// Process a block of data
     fn SaSi_AesBlock(
         // AES context
@@ -158,13 +179,14 @@ extern "C" {
     /// Clean up a AES context
     fn SaSi_AesFree(
         // AES context
-        context: *mut CryptoCellAesContext
+        context: *mut CryptoCellAesContext,
     ) -> u32;
 }
 
+/// CryptoCell Key Data
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct KeyData {
+struct KeyData {
     pub key: *const u8,
     pub size: usize,
 }
@@ -175,77 +197,94 @@ pub struct AesContext {
 
 impl AesContext {
     fn new(encrypt: EncryptDecrypt, mode: AesOperationMode, padding_type: PaddingType) -> Self {
-        let mut context = CryptoCellAesContext{ buff: [0u32; 19] };
+        let mut context = CryptoCellAesContext { buff: [0u32; 19] };
         let ctx_ptr = &mut context as *mut CryptoCellAesContext;
-        let result = unsafe { SaSi_AesInit(
-            ctx_ptr,
-            encrypt as u32,
-            mode as u32,
-            padding_type as u32,
-        ) };
+        let result =
+            unsafe { SaSi_AesInit(ctx_ptr, encrypt as u32, mode as u32, padding_type as u32) };
         if result != 0 {
             panic!("Failed to initialize AES context");
         }
 
-        Self {
-            context
-        }
+        Self { context }
     }
 
     fn context(&mut self) -> *mut CryptoCellAesContext {
         &mut self.context as *mut CryptoCellAesContext
     }
 
-    pub fn set_key(&mut self, key: &[u8]) -> Result<(), Error>
-    {
+    fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         assert!(key.len() == KEY_SIZE);
         let user_key = KeyData {
             key: key.as_ptr(),
             size: key.len(),
         };
-        let result = unsafe { SaSi_AesSetKey(
-            self.context(),
-            0, // User key
-            &user_key as *const KeyData as *const cty::c_void,
-            core::mem::size_of::<KeyData>(),
-        ) };
+        let result = unsafe {
+            SaSi_AesSetKey(
+                self.context(),
+                0, // User key
+                &user_key as *const KeyData as *const cty::c_void,
+                core::mem::size_of::<KeyData>(),
+            )
+        };
         if result != 0 {
-            return Err(Error::CryptoCellError(result));
+            return Err(Error::Other(result));
         }
         Ok(())
     }
 
-    pub fn process_block(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error>
-    {
+    /// Set the IV
+    fn set_iv(&mut self, iv: &[u8]) -> Result<(), Error> {
+        assert!(iv.len() == 16);
+        let result = unsafe { SaSi_AesSetIv(self.context(), iv.as_ptr()) };
+        if result != 0 {
+            return Err(Error::Other(result));
+        }
+        Ok(())
+    }
+
+    /// Set the IV
+    fn get_iv(&mut self, iv: &mut [u8]) -> Result<(), Error> {
+        assert!(iv.len() == 16);
+        let result = unsafe { SaSi_AesGetIv(self.context(), iv.as_mut_ptr()) };
+        if result != 0 {
+            return Err(Error::Other(result));
+        }
+        Ok(())
+    }
+
+    fn process_block(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
         assert!(input.len() <= output.len());
         assert!(input.len() <= 65535);
-        let result = unsafe { SaSi_AesBlock(
-            self.context(),
-            input.as_ptr(),
-            input.len(),
-            output.as_mut_ptr(),
-        ) };
+        let result = unsafe {
+            SaSi_AesBlock(
+                self.context(),
+                input.as_ptr(),
+                input.len(),
+                output.as_mut_ptr(),
+            )
+        };
         if result != 0 {
-            return Err(Error::CryptoCellError(result));
+            return Err(Error::Other(result));
         }
         Ok(())
     }
 
-    pub fn finish(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error>
-    {
+    fn finish(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
         assert!(input.len() <= output.len());
         assert!(input.len() == 16);
         let mut output_length = output.len();
-        let result = unsafe { SaSi_AesFinish(
-            self.context(),
-            16,
-            input.as_ptr(),
-            16,
-            output.as_mut_ptr(),
-            (&mut output_length) as *mut usize,
-        ) };
+        let result = unsafe {
+            SaSi_AesFinish(
+                self.context(),
+                16,
+                input.as_ptr(),
+                16,
+                output.as_mut_ptr(),
+                (&mut output_length) as *mut usize,
+            )
+        };
         if result != 0 {
-            return Err(Error::CryptoCellError(result));
+            return Err(Error::Other(result));
         }
         Ok(())
     }
@@ -257,37 +296,46 @@ impl core::ops::Drop for AesContext {
     }
 }
 
-pub struct CryptoCell {
-    cc: CRYPTOCELL,
+pub struct CryptoCellBackend {
+    cryptocell: CRYPTOCELL,
+    cipher: AesContext,
 }
 
-impl core::ops::Drop for CryptoCell {
+impl core::ops::Drop for CryptoCellBackend {
     fn drop(&mut self) {
         unsafe { SaSi_LibFini() }
-        self.cc.enable.write(|w| w.enable().clear_bit());
+        self.cryptocell.enable.write(|w| w.enable().clear_bit());
     }
 }
 
-impl CryptoCell {
-    pub fn new(cc: CRYPTOCELL) -> Self {
-        cc.enable.write(|w| w.enable().set_bit());
+impl CryptoCellBackend {
+    pub fn new(cryptocell: CRYPTOCELL) -> Self {
+        cryptocell.enable.write(|w| w.enable().set_bit());
 
         if unsafe { SaSi_LibInit() } != 0 {
             panic!("Failed to initialize SaSi library");
         }
 
-        Self { cc }
-    }
+        let cipher = AesContext::new(
+            EncryptDecrypt::Encrypt,
+            AesOperationMode::Ecb,
+            PaddingType::None,
+        );
 
-    pub fn aes128_ccm_star_decrypt(
-        &self,
-        key: &[u8; KEY_SIZE],
+        Self { cryptocell, cipher }
+    }
+}
+
+impl CryptoBackend for CryptoCellBackend {
+    fn ccmstar_decrypt(
+        &mut self,
+        key: &[u8],
         nonce: &[u8],
         message: &[u8],
         mic_length: usize,
         additional_data: &[u8],
         message_output: &mut [u8],
-    ) -> Result<(), Error> {
+    ) -> Result<usize, Error> {
         let message_len = (message.len() - mic_length) as u32;
         let mut mic_result = [0u8; 16];
         mic_result[..mic_length].copy_from_slice(&message[message_len as usize..]);
@@ -309,20 +357,20 @@ impl CryptoCell {
             )
         };
         if result != 0 {
-            return Err(Error::CryptoCellError(result));
+            return Err(Error::Other(result));
         }
-        Ok(())
+        Ok(0)
     }
 
-    pub fn aes128_ccm_star_encrypt(
-        &self,
-        key: &[u8; KEY_SIZE],
+    fn ccmstar_encrypt(
+        &mut self,
+        key: &[u8],
         nonce: &[u8],
         message: &[u8],
         mic_length: usize,
         additional_data: &[u8],
         message_output: &mut [u8],
-    ) -> Result<(), Error> {
+    ) -> Result<usize, Error> {
         let message_len = (message.len() - mic_length) as u32;
         let mut mic_result = [0u8; 16];
         mic_result[..mic_length].copy_from_slice(&message[message_len as usize..]);
@@ -344,13 +392,29 @@ impl CryptoCell {
             )
         };
         if result != 0 {
-            return Err(Error::CryptoCellError(result));
+            return Err(Error::Other(result));
         }
-        Ok(())
+        Ok(0)
     }
 
-    pub fn aes128_ecb_encrypt() -> Result<AesContext, Error>
-    {
-        Ok(AesContext::new(EncryptDecrypt::Encrypt, AesOperationMode::Ecb, PaddingType::None))
+    /// Set the key
+    fn aes128_ecb_encrypt_set_key(&mut self, key: &[u8]) -> Result<(), Error> {
+        self.cipher.set_key(key)
+    }
+    /// Set the IV
+    fn aes128_ecb_encrypt_set_iv(&mut self, iv: &[u8]) -> Result<(), Error> {
+        self.cipher.set_iv(iv)
+    }
+    /// Process blocks of data
+    fn aes128_ecb_encrypt_process_block(
+        &mut self,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> Result<(), Error> {
+        self.cipher.process_block(input, output)
+    }
+    /// Process the last bits and bobs and finish
+    fn aes128_ecb_encrypt_finish(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
+        self.cipher.finish(input, output)
     }
 }
