@@ -48,7 +48,7 @@ const APP: () = {
             uarte::Baudrate::BAUD115200,
         );
 
-        let bb_queue = bbq![MAX_PACKET_LENGHT * 8].unwrap();
+        let bb_queue = bbq![MAX_PACKET_LENGHT * 16].unwrap();
         let (q_producer, q_consumer) = bb_queue.split();
 
         let mut radio = Radio::new(device.RADIO);
