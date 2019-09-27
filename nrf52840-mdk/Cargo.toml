@@ -17,4 +17,4 @@ esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch 
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 bbqueue = { git = "https://github.com/jamesmunns/bbqueue" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
-psila-crypto-trait = { git = "https://blueluna@bitbucket.org/blueluna/psila.git" }
+psila-crypto = { git = "https://blueluna@bitbucket.org/blueluna/psila.git" }

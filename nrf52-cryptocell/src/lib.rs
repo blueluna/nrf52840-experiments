@@ -3,7 +3,7 @@
 #![no_std]
 
 use nrf52840_pac::CRYPTOCELL;
-pub use psila_crypto_trait::{CryptoBackend, Error};
+pub use psila_crypto::{CryptoBackend, Error};
 
 /// Key length
 pub const KEY_SIZE: usize = 16;
@@ -242,7 +242,7 @@ impl AesContext {
         Ok(())
     }
 
-    /// Set the IV
+    /// Get the IV
     fn get_iv(&mut self, iv: &mut [u8]) -> Result<(), Error> {
         assert!(iv.len() == 16);
         let result = unsafe { SaSi_AesGetIv(self.context(), iv.as_mut_ptr()) };
@@ -400,6 +400,10 @@ impl CryptoBackend for CryptoCellBackend {
     /// Set the key
     fn aes128_ecb_encrypt_set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         self.cipher.set_key(key)
+    }
+    /// Get the IV
+    fn aes128_ecb_encrypt_get_iv(&mut self, iv: &mut [u8]) -> Result<(), Error> {
+        self.cipher.get_iv(iv)
     }
     /// Set the IV
     fn aes128_ecb_encrypt_set_iv(&mut self, iv: &[u8]) -> Result<(), Error> {

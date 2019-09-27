@@ -10,7 +10,7 @@ use rtfm::app;
 use nrf52840_hal::{clocks, prelude::*};
 
 use nrf52_cryptocell::{self, CryptoCellBackend};
-pub use psila_crypto_trait::{self, CryptoBackend, Error};
+pub use psila_crypto::{self, CryptoBackend, Error};
 
 /// Key length
 pub const KEY_SIZE: usize = 16;
