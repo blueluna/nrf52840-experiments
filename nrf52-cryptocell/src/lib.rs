@@ -3,10 +3,7 @@
 #![no_std]
 
 use nrf52840_pac::CRYPTOCELL;
-pub use psila_crypto::{CryptoBackend, Error};
-
-/// Key length
-pub const KEY_SIZE: usize = 16;
+pub use psila_crypto::{BLOCK_SIZE, CryptoBackend, Error, KEY_SIZE, LENGHT_FIELD_LENGTH};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EncryptDecrypt {
@@ -196,13 +193,13 @@ pub struct AesContext {
 }
 
 impl AesContext {
-    fn new(encrypt: EncryptDecrypt, mode: AesOperationMode, padding_type: PaddingType) -> Self {
+    pub fn new(encrypt: EncryptDecrypt, mode: AesOperationMode, padding_type: PaddingType) -> Self {
         let mut context = CryptoCellAesContext { buff: [0u32; 19] };
         let ctx_ptr = &mut context as *mut CryptoCellAesContext;
         let result =
             unsafe { SaSi_AesInit(ctx_ptr, encrypt as u32, mode as u32, padding_type as u32) };
         if result != 0 {
-            panic!("Failed to initialize AES context");
+            panic!("Failed to initialize AES context {:08x}", result);
         }
 
         Self { context }
@@ -212,7 +209,7 @@ impl AesContext {
         &mut self.context as *mut CryptoCellAesContext
     }
 
-    fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
+    pub fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         assert!(key.len() == KEY_SIZE);
         let user_key = KeyData {
             key: key.as_ptr(),
@@ -233,7 +230,7 @@ impl AesContext {
     }
 
     /// Set the IV
-    fn set_iv(&mut self, iv: &[u8]) -> Result<(), Error> {
+    pub fn set_iv(&mut self, iv: &[u8]) -> Result<(), Error> {
         assert!(iv.len() == 16);
         let result = unsafe { SaSi_AesSetIv(self.context(), iv.as_ptr()) };
         if result != 0 {
@@ -243,7 +240,7 @@ impl AesContext {
     }
 
     /// Get the IV
-    fn get_iv(&mut self, iv: &mut [u8]) -> Result<(), Error> {
+    pub fn get_iv(&mut self, iv: &mut [u8]) -> Result<(), Error> {
         assert!(iv.len() == 16);
         let result = unsafe { SaSi_AesGetIv(self.context(), iv.as_mut_ptr()) };
         if result != 0 {
@@ -252,7 +249,7 @@ impl AesContext {
         Ok(())
     }
 
-    fn process_block(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
+    pub fn process_block(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
         assert!(input.len() <= output.len());
         assert!(input.len() <= 65535);
         let result = unsafe {
@@ -269,9 +266,8 @@ impl AesContext {
         Ok(())
     }
 
-    fn finish(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
+    pub fn finish(&mut self, input: &[u8], output: &mut [u8]) -> Result<(), Error> {
         assert!(input.len() <= output.len());
-        assert!(input.len() == 16);
         let mut output_length = output.len();
         let result = unsafe {
             SaSi_AesFinish(
@@ -308,6 +304,8 @@ impl core::ops::Drop for CryptoCellBackend {
     }
 }
 
+const AAD_B0_LEN: usize = BLOCK_SIZE - LENGHT_FIELD_LENGTH;
+
 impl CryptoCellBackend {
     pub fn new(cryptocell: CRYPTOCELL) -> Self {
         cryptocell.enable.write(|w| w.enable().set_bit());
@@ -324,6 +322,17 @@ impl CryptoCellBackend {
 
         Self { cryptocell, cipher }
     }
+
+    fn make_flag(a_length: usize, big_m: usize, big_l: usize) -> u8 {
+        let mut flag = if a_length > 0 { 0x40 } else { 0 };
+        flag = if big_m > 0 {
+            flag | ((((big_m - 2) / 2) as u8) & 0x07) << 3
+        } else {
+            flag
+        };
+        flag |= 0x07 & ((big_l - 1) as u8);
+        flag
+    }
 }
 
 impl CryptoBackend for CryptoCellBackend {
@@ -331,69 +340,143 @@ impl CryptoBackend for CryptoCellBackend {
         &mut self,
         key: &[u8],
         nonce: &[u8],
-        message: &[u8],
-        mic_length: usize,
+        encrypted: &[u8],
+        mic: &[u8],
         additional_data: &[u8],
-        message_output: &mut [u8],
+        decrypted: &mut [u8],
     ) -> Result<usize, Error> {
-        let message_len = (message.len() - mic_length) as u32;
-        let mut mic_result = [0u8; 16];
-        mic_result[..mic_length].copy_from_slice(&message[message_len as usize..]);
-        let result = unsafe {
-            CC_AESCCM(
-                EncryptDecrypt::Decrypt as u32,
-                key.as_ptr(),
-                KeyType::Aes128 as u32,
-                nonce.as_ptr(),
-                nonce.len() as u8,
-                additional_data.as_ptr(),
-                additional_data.len() as u32,
-                message.as_ptr(),
-                message_len,
-                message_output.as_mut_ptr(),
-                mic_length as u8,
-                mic_result.as_mut_ptr(),
-                CcmMode::CcmStar as u32,
-            )
-        };
-        if result != 0 {
-            return Err(Error::Other(result));
+        assert!(key.len() == KEY_SIZE);
+        assert!(nonce.len() == 13);
+        assert!(decrypted.len() >= encrypted.len());
+
+        let enc_full_block_length = (encrypted.len() / BLOCK_SIZE) * BLOCK_SIZE;
+
+        let mut tag = [0; BLOCK_SIZE];
+        {
+            // Decrypt data
+            let mut cipher =
+                AesContext::new(EncryptDecrypt::Decrypt,
+                                AesOperationMode::Ctr,
+                                PaddingType::None);
+            cipher.set_key(key)?;
+
+            let mut block = [0u8; BLOCK_SIZE];
+            {
+                let (flag, other) = block.split_at_mut(1);
+                let (_nonce, _counter) = other.split_at_mut(nonce.len());
+                flag[0] = Self::make_flag(0, 0, LENGHT_FIELD_LENGTH);
+                _nonce.copy_from_slice(&nonce);
+            }
+
+            cipher.set_iv(&block)?;
+
+            let mut block = [0u8; BLOCK_SIZE];
+            block[..mic.len()].copy_from_slice(&mic);
+
+            cipher.process_block(&block, &mut tag)?;
+
+            cipher.process_block(&encrypted[..enc_full_block_length], decrypted)?;
+            cipher.finish(&encrypted[enc_full_block_length..], &mut decrypted[enc_full_block_length..])?;
         }
-        Ok(0)
+        let mut output = [0u8; BLOCK_SIZE];
+        {
+            // Validate MIC using AES128-CBC-MAC
+            let mut cipher =
+                AesContext::new(EncryptDecrypt::Encrypt,
+                                AesOperationMode::CbcMac,
+                                PaddingType::None);
+            cipher.set_key(key)?;
+
+            let length_field = encrypted.len() as u16;
+
+            let mut block = [0u8; BLOCK_SIZE];
+            {
+                let (flag, other) = block.split_at_mut(1);
+                let (_nonce, length) = other.split_at_mut(nonce.len());
+                flag[0] = Self::make_flag(additional_data.len(), mic.len(), LENGHT_FIELD_LENGTH);
+                _nonce.copy_from_slice(&nonce);
+                length[0] = (length_field >> 8) as u8;
+                length[1] = (length_field & 0x00ff) as u8;
+            }
+
+            cipher.process_block(&block, &mut output)?;
+
+            // Feed the additional data
+            let mut block = [0u8; BLOCK_SIZE];
+            let aad_length = additional_data.len() as u16;
+            block[0] = (aad_length >> 8) as u8;
+            block[1] = (aad_length & 0x00ff) as u8;
+            let len = if additional_data.len() < AAD_B0_LEN {
+                additional_data.len()
+            } else { AAD_B0_LEN };
+            block[2..2 + len].copy_from_slice(&additional_data[..len]);
+
+            cipher.process_block(&block, &mut output)?;
+
+            if additional_data.len() > AAD_B0_LEN {
+                let mut iter = additional_data[AAD_B0_LEN..].chunks_exact(BLOCK_SIZE);
+                loop {
+                    match iter.next() {
+                        Some(input) => {
+                            cipher.process_block(input, &mut output)?;
+                        }
+                        None => {
+                            let mut block = [0u8; BLOCK_SIZE];
+                            let input = iter.remainder();
+                            block[..input.len()].copy_from_slice(input);
+                            cipher.process_block(&block, &mut output)?;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            let mut iter = decrypted[..encrypted.len()].chunks_exact(BLOCK_SIZE);
+            loop {
+                match iter.next() {
+                    Some(input) => {
+                        cipher.process_block(input, &mut output)?;
+                    }
+                    None => {
+                        let mut block = [0u8; BLOCK_SIZE];
+                        let input = iter.remainder();
+                        block[..input.len()].copy_from_slice(input);
+                        // Must feed a full block into finish here, otherwise the
+                        // result will be wrong
+                        cipher.finish(&block, &mut output)?;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut valid = true;
+        for (a, b) in tag[..mic.len()].iter().zip(output[..mic.len()].iter()) {
+            if a != b {
+                valid = false;
+                break;
+            }
+        }
+
+        if valid {
+            Ok(encrypted.len())
+        } else {
+            for b in decrypted.iter_mut() {
+                *b = 0;
+            }
+            Ok(0)
+        }
     }
 
     fn ccmstar_encrypt(
         &mut self,
-        key: &[u8],
-        nonce: &[u8],
-        message: &[u8],
-        mic_length: usize,
-        additional_data: &[u8],
-        message_output: &mut [u8],
+        _key: &[u8],
+        _nonce: &[u8],
+        _message: &[u8],
+        _mic: &mut [u8],
+        _additional_data: &[u8],
+        _message_output: &mut [u8],
     ) -> Result<usize, Error> {
-        let message_len = (message.len() - mic_length) as u32;
-        let mut mic_result = [0u8; 16];
-        mic_result[..mic_length].copy_from_slice(&message[message_len as usize..]);
-        let result = unsafe {
-            CC_AESCCM(
-                EncryptDecrypt::Decrypt as u32,
-                key.as_ptr(),
-                KeyType::Aes128 as u32,
-                nonce.as_ptr(),
-                nonce.len() as u8,
-                additional_data.as_ptr(),
-                additional_data.len() as u32,
-                message.as_ptr(),
-                message_len,
-                message_output.as_mut_ptr(),
-                mic_length as u8,
-                mic_result.as_mut_ptr(),
-                CcmMode::CcmStar as u32,
-            )
-        };
-        if result != 0 {
-            return Err(Error::Other(result));
-        }
         Ok(0)
     }
 
