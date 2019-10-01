@@ -3,7 +3,9 @@
 #![no_std]
 
 use nrf52840_pac::CRYPTOCELL;
-pub use psila_crypto::{BlockCipher, CryptoBackend, Error, BLOCK_SIZE, KEY_SIZE, LENGHT_FIELD_LENGTH};
+pub use psila_crypto::{
+    BlockCipher, CryptoBackend, Error, BLOCK_SIZE, KEY_SIZE, LENGHT_FIELD_LENGTH,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EncryptDecrypt {
@@ -462,8 +464,7 @@ impl CryptoBackend for CryptoCellBackend {
         output: &mut [u8],
     ) -> Result<usize, Error> {
         let message_blocks = (message.len() + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-        let aad_blocks =
-            (aad.len() + LENGHT_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+        let aad_blocks = (aad.len() + LENGHT_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
         let mut new_mic = [0u8; BLOCK_SIZE];
         // Generate a MIC
         {
@@ -487,7 +488,11 @@ impl CryptoBackend for CryptoCellBackend {
             buffer[offset..offset + message.len()].copy_from_slice(message);
             offset += message_blocks * BLOCK_SIZE;
 
-            let mut cipher = AesContext::new(EncryptDecrypt::Encrypt, AesOperationMode::CbcMac, PaddingType::None);
+            let mut cipher = AesContext::new(
+                EncryptDecrypt::Encrypt,
+                AesOperationMode::CbcMac,
+                PaddingType::None,
+            );
             cipher.set_key(key)?;
 
             for input in buffer[..offset].chunks_exact(BLOCK_SIZE) {
@@ -506,7 +511,11 @@ impl CryptoBackend for CryptoCellBackend {
             block[0] = Self::make_flag(0, 0, LENGHT_FIELD_LENGTH);
             block[1..=nonce.len()].copy_from_slice(nonce);
 
-            let mut cipher = AesContext::new(EncryptDecrypt::Encrypt, AesOperationMode::Ctr, PaddingType::None);
+            let mut cipher = AesContext::new(
+                EncryptDecrypt::Encrypt,
+                AesOperationMode::Ctr,
+                PaddingType::None,
+            );
             cipher.set_key(key)?;
             cipher.set_iv(&block)?;
 
@@ -515,7 +524,9 @@ impl CryptoBackend for CryptoCellBackend {
             block[..mic.len()].copy_from_slice(&new_mic[..mic.len()]);
             cipher.process_block(&block, &mut tag)?;
 
-            for (o, i) in encrypted[..offset].chunks_mut(BLOCK_SIZE).zip(buffer.chunks(BLOCK_SIZE))
+            for (o, i) in encrypted[..offset]
+                .chunks_mut(BLOCK_SIZE)
+                .zip(buffer.chunks(BLOCK_SIZE))
             {
                 cipher.process_block(i, o)?;
             }
