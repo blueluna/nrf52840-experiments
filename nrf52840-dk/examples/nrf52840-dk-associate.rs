@@ -12,6 +12,8 @@ use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
 
 use nrf52840_pac as pac;
 
+use bbqueue::{self, bbq, BBQueue};
+
 use esercom;
 use ieee802154::mac::ExtendedAddress;
 use nrf52_radio_802154::{
@@ -24,12 +26,12 @@ use nrf52_radio_802154::{
 #[app(device = nrf52840_pac)]
 const APP: () = {
     static mut TIMER: pac::TIMER1 = ();
-    static mut LED_1: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
-    static mut LED_2: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
     static mut SERVICE: Service = ();
     static mut ITM: ITM = ();
+    static mut RX_PRODUCER: bbqueue::Producer = ();
+    static mut RX_CONSUMER: bbqueue::Consumer = ();
 
     #[init]
     fn init() {
@@ -76,16 +78,19 @@ const APP: () = {
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
+        let bb_queue = bbq![MAX_PACKET_LENGHT * 32].unwrap();
+        let (rx_producer, rx_consumer) = bb_queue.split();
+
         TIMER = timer1;
-        LED_1 = p0.p0_13.degrade().into_push_pull_output(gpio::Level::High);
-        LED_2 = p0.p0_14.degrade().into_push_pull_output(gpio::Level::Low);
         RADIO = radio;
         UARTE = uarte0;
         SERVICE = Service::new(extended_address);
         ITM = core.ITM;
+        RX_PRODUCER = rx_producer;
+        RX_CONSUMER = rx_consumer;
     }
 
-    #[interrupt(resources = [LED_1, SERVICE, RADIO, TIMER, ITM],)]
+    #[interrupt(resources = [SERVICE, RADIO, TIMER, ITM],)]
     fn TIMER1() {
         let mut timer = resources.TIMER;
         let mut service = resources.SERVICE;
@@ -94,8 +99,6 @@ const APP: () = {
         let itm_port = &mut resources.ITM.stim[0];
 
         iprintln!(itm_port, "TIMER1");
-
-        (*resources.LED_1).set_low();
 
         timer.ack_compare_event(1);
 
@@ -127,18 +130,13 @@ const APP: () = {
         }
     }
 
-    #[interrupt(resources = [LED_1, LED_2, SERVICE, RADIO, TIMER, UARTE, ITM],)]
+    #[interrupt(resources = [SERVICE, RADIO, TIMER, RX_PRODUCER],)]
     fn RADIO() {
         let mut timer = resources.TIMER;
-        let uarte = resources.UARTE;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
-        let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let mut radio = resources.RADIO;
         let mut service = resources.SERVICE;
-        let itm_port = &mut resources.ITM.stim[0];
-
-        (*resources.LED_1).set_high();
-        (*resources.LED_2).set_high();
+        let queue = resources.RX_PRODUCER;
 
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
@@ -146,19 +144,27 @@ const APP: () = {
             if fire_at > 0 {
                 timer.fire_at(1, fire_at);
             }
-            match esercom::com_encode(
-                esercom::MessageType::RadioReceive,
-                &packet[1..packet_len],
-                &mut host_packet,
-            ) {
-                Ok(written) => {
+            if let Ok(mut grant) = queue.grant(packet_len) {
+                grant.copy_from_slice(&packet[..packet_len]);
+                queue.commit(packet_len, grant);
+            }
+        }
+    }
+
+    #[idle(resources = [RX_CONSUMER, UARTE])]
+    fn idle() -> ! {
+        let mut host_packet = [0u8; MAX_PACKET_LENGHT * 2];
+        let queue = resources.RX_CONSUMER;
+        let uarte = resources.UARTE;
+
+        loop {
+            if let Ok(grant) = queue.read() {
+                let packet_length = grant[0] as usize;
+                if let Ok(written) = esercom::com_encode(esercom::MessageType::RadioReceive, &grant[1..packet_length], &mut host_packet) {
                     uarte.write(&host_packet[..written]).unwrap();
                 }
-                Err(_) => {
-                    iprintln!(itm_port, "Failed to encode packet");
-                }
+                queue.release(packet_length, grant);
             }
-            (*resources.LED_2).set_low();
         }
     }
 };
