@@ -1,4 +1,12 @@
-//! nRF52840 CryptoCell
+//! # nRF52840 CryptoCell for Psila
+//!
+//! Functions for using the CryptoCell in the nRF52840 for the security in
+//! Psila. This uses the nrf_cc310 library provided by Nordic in their SDK.
+//!
+//! Note that there is a CCM* implementation in the CC310 library provided by
+//! Nordic. But that implementation requires the last byte of the nonce to
+//! only indicate the MIC length and encryption. For the usage in Psila this
+//! byte contains more bits of information.
 
 #![no_std]
 
@@ -6,6 +14,11 @@ use nrf52840_pac::CRYPTOCELL;
 pub use psila_crypto::{
     BlockCipher, CryptoBackend, Error, BLOCK_SIZE, KEY_SIZE, LENGTH_FIELD_LENGTH,
 };
+
+fn clear(slice: &mut [u8])
+{
+    for v in slice.iter_mut() { *v = 0; }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EncryptDecrypt {
@@ -439,9 +452,7 @@ impl CryptoBackend for CryptoCellBackend {
         if valid {
             Ok(encrypted.len())
         } else {
-            for b in decrypted.iter_mut() {
-                *b = 0;
-            }
+            clear(decrypted);
             Ok(0)
         }
     }
