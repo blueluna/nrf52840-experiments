@@ -4,7 +4,7 @@
 
 use nrf52840_pac::CRYPTOCELL;
 pub use psila_crypto::{
-    BlockCipher, CryptoBackend, Error, BLOCK_SIZE, KEY_SIZE, LENGHT_FIELD_LENGTH,
+    BlockCipher, CryptoBackend, Error, BLOCK_SIZE, KEY_SIZE, LENGTH_FIELD_LENGTH,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -274,7 +274,7 @@ impl core::ops::Drop for CryptoCellBackend {
     }
 }
 
-const AAD_B0_LEN: usize = BLOCK_SIZE - LENGHT_FIELD_LENGTH;
+const AAD_B0_LEN: usize = BLOCK_SIZE - LENGTH_FIELD_LENGTH;
 
 impl CryptoCellBackend {
     pub fn new(cryptocell: CRYPTOCELL) -> Self {
@@ -336,7 +336,7 @@ impl CryptoBackend for CryptoCellBackend {
             {
                 let (flag, other) = block.split_at_mut(1);
                 let (_nonce, _counter) = other.split_at_mut(nonce.len());
-                flag[0] = Self::make_flag(0, 0, LENGHT_FIELD_LENGTH);
+                flag[0] = Self::make_flag(0, 0, LENGTH_FIELD_LENGTH);
                 _nonce.copy_from_slice(&nonce);
             }
 
@@ -369,7 +369,7 @@ impl CryptoBackend for CryptoCellBackend {
             {
                 let (flag, other) = block.split_at_mut(1);
                 let (_nonce, length) = other.split_at_mut(nonce.len());
-                flag[0] = Self::make_flag(aad.len(), mic.len(), LENGHT_FIELD_LENGTH);
+                flag[0] = Self::make_flag(aad.len(), mic.len(), LENGTH_FIELD_LENGTH);
                 _nonce.copy_from_slice(&nonce);
                 length[0] = (length_field >> 8) as u8;
                 length[1] = (length_field & 0x00ff) as u8;
@@ -458,11 +458,11 @@ impl CryptoBackend for CryptoCellBackend {
         let mut new_mic = [0u8; BLOCK_SIZE];
         // Generate a MIC
         {
-            let aad_blocks = (aad.len() + LENGHT_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+            let aad_blocks = (aad.len() + LENGTH_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
             let mut buffer = [0u8; 256];
             let mut offset = 0;
 
-            buffer[0] = Self::make_flag(aad.len(), mic.len(), LENGHT_FIELD_LENGTH);
+            buffer[0] = Self::make_flag(aad.len(), mic.len(), LENGTH_FIELD_LENGTH);
             offset += 1;
             buffer[offset..offset + nonce.len()].copy_from_slice(nonce);
             offset += nonce.len();
@@ -511,7 +511,7 @@ impl CryptoBackend for CryptoCellBackend {
             offset += message_blocks * BLOCK_SIZE;
 
             let mut block = [0u8; BLOCK_SIZE];
-            block[0] = Self::make_flag(0, 0, LENGHT_FIELD_LENGTH);
+            block[0] = Self::make_flag(0, 0, LENGTH_FIELD_LENGTH);
             block[1..=nonce.len()].copy_from_slice(nonce);
 
             let mut cipher = AesContext::new(
