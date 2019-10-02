@@ -4,7 +4,7 @@
 #[allow(unused_imports)]
 use panic_itm;
 
-use cortex_m::{iprintln, iprint, peripheral::ITM};
+use cortex_m::{iprint, iprintln, peripheral::ITM};
 
 use rtfm::app;
 

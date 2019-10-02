@@ -60,15 +60,6 @@ pub enum PaddingType {
     Pkcs7 = 1,
 }
 
-/// CCM-mode
-#[derive(Clone, Debug, PartialEq)]
-pub enum CcmMode {
-    /// CCM
-    Ccm = 0,
-    /// CCM*
-    CcmStar = 1,
-}
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 struct CryptoCellAesContext {
@@ -302,6 +293,7 @@ impl CryptoCellBackend {
         Self { cryptocell, cipher }
     }
 
+    /// Create
     fn make_flag(a_length: usize, big_m: usize, big_l: usize) -> u8 {
         let mut flag = if a_length > 0 { 0x40 } else { 0 };
         flag = if big_m > 0 {
@@ -462,12 +454,11 @@ impl CryptoBackend for CryptoCellBackend {
         mic: &mut [u8],
         aad: &[u8],
         output: &mut [u8],
-    ) -> Result<usize, Error> {
-        let message_blocks = (message.len() + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-        let aad_blocks = (aad.len() + LENGHT_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
+    ) -> Result<usize, psila_crypto::Error> {
         let mut new_mic = [0u8; BLOCK_SIZE];
         // Generate a MIC
         {
+            let aad_blocks = (aad.len() + LENGHT_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
             let mut buffer = [0u8; 256];
             let mut offset = 0;
 
@@ -486,7 +477,7 @@ impl CryptoBackend for CryptoCellBackend {
             buffer[offset..offset + aad.len()].copy_from_slice(aad);
             offset += (aad_blocks * BLOCK_SIZE) - 2;
             buffer[offset..offset + message.len()].copy_from_slice(message);
-            offset += message_blocks * BLOCK_SIZE;
+            offset += message.len();
 
             let mut cipher = AesContext::new(
                 EncryptDecrypt::Encrypt,
@@ -495,11 +486,23 @@ impl CryptoBackend for CryptoCellBackend {
             );
             cipher.set_key(key)?;
 
-            for input in buffer[..offset].chunks_exact(BLOCK_SIZE) {
-                cipher.process_block(&input, &mut new_mic)?;
+            let mut iter = buffer[..offset].chunks_exact(BLOCK_SIZE);
+            loop {
+                match iter.next() {
+                    Some(input) => {
+                        cipher.process_block(&input, &mut new_mic)?;
+                    }
+                    None => {
+                        let mut block = [0u8; BLOCK_SIZE];
+                        block[..iter.remainder().len()].copy_from_slice(iter.remainder());
+                        cipher.finish(&block, &mut new_mic)?;
+                        break;
+                    }
+                }
             }
         }
         {
+            let message_blocks = (message.len() + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
             let mut buffer = [0u8; 256];
             let mut encrypted = [0u8; 256];
             let mut offset = 0;
