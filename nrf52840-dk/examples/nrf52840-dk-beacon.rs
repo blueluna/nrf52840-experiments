@@ -2,9 +2,10 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use panic_semihosting;
+use panic_itm;
 
-use cortex_m_semihosting::hprintln;
+use cortex_m::{iprintln, peripheral::ITM};
+
 use rtfm::app;
 
 use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
@@ -43,6 +44,7 @@ const APP: () = {
     static mut RADIO: Radio = ();
     static mut SEQUENCE: u8 = 0u8;
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
+    static mut ITM: ITM = ();
 
     #[init]
     fn init() {
@@ -84,7 +86,7 @@ const APP: () = {
         );
 
         let mut radio = Radio::new(device.RADIO);
-        radio.set_channel(15);
+        radio.set_channel(11);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
@@ -96,11 +98,13 @@ const APP: () = {
         LED_2 = pins.p0_14.degrade().into_push_pull_output(gpio::Level::Low);
         RADIO = radio;
         UARTE = uarte0;
+        ITM = core.ITM;
     }
 
-    #[interrupt(resources = [BEACON_TIMER, RADIO, SEQUENCE, LED_1],)]
+    #[interrupt(resources = [BEACON_TIMER, RADIO, SEQUENCE, LED_1, ITM],)]
     fn TIMER1() {
         let timer = resources.BEACON_TIMER;
+        let itm_port = &mut resources.ITM.stim[0];
         // Clear event and restart
         timer.events_compare[0].write(|w| w.events_compare().clear_bit());
         timer.tasks_clear.write(|w| w.tasks_clear().set_bit());
@@ -109,19 +113,21 @@ const APP: () = {
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let size = build_beacon_request(*resources.SEQUENCE, &mut packet);
-        let used = radio.queue_transmission(&mut packet[..size]);
+        let used = radio.queue_transmission(&packet[..size]);
         if used != size {
-            hprintln!("Failed to send beacon").unwrap();
+            iprintln!(itm_port, "Failed to send beacon");
         }
         *resources.SEQUENCE = resources.SEQUENCE.wrapping_add(1);
     }
 
-    #[interrupt(resources = [RADIO, UARTE, LED_1, LED_2],)]
+    #[interrupt(resources = [RADIO, UARTE, LED_1, LED_2, ITM],)]
     fn RADIO() {
         let uarte = resources.UARTE;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let mut radio = resources.RADIO;
+        let itm_port = &mut resources.ITM.stim[0];
+
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
         let packet_len = radio.receive(&mut packet);
@@ -135,7 +141,7 @@ const APP: () = {
                     uarte.write(&host_packet[..written]).unwrap();
                 }
                 Err(_) => {
-                    hprintln!("Failed to encode packet").unwrap();
+                    iprintln!(itm_port, "Failed to encode packet");
                 }
             }
             (*resources.LED_2).set_low();

@@ -15,8 +15,6 @@ nrf52840-hal = "0.8"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
 panic-itm = "0.4"
-panic-semihosting = "0.5"
-cortex-m-semihosting = "0.3"
 cortex-m-rtfm = "0.4"
 ieee802154 = "0.3"
 esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch = "master" }
@@ -24,3 +22,4 @@ nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 psila-crypto = { git = "https://blueluna@bitbucket.org/blueluna/psila.git" }
 psila-data = { git = "https://blueluna@bitbucket.org/blueluna/psila.git", features = ["core"] }
+bbqueue = { git = "https://github.com/jamesmunns/bbqueue" }

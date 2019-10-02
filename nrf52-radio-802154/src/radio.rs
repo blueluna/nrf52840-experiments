@@ -1,6 +1,5 @@
 //! 802.15.4 nRF52840 Radio
 
-use cortex_m_semihosting::hprintln;
 use nrf52840_pac::{radio, RADIO};
 
 const MAX_PACKET_LENGHT_REG: u8 = 129;
@@ -434,7 +433,6 @@ impl Radio {
             .bit_is_set()
         {
             self.radio.events_ccabusy.reset();
-            hprintln!("CCABUSY").unwrap();
             self.receive_prepare();
         }
         0
@@ -483,7 +481,6 @@ impl Radio {
             .bit_is_set()
         {
             self.radio.events_ccabusy.reset();
-            hprintln!("CCABUSY").unwrap();
             self.receive_prepare();
         }
         0

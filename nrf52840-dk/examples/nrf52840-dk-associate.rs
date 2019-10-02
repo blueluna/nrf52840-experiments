@@ -2,9 +2,10 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use panic_semihosting;
+use panic_itm;
 
-use cortex_m_semihosting::hprintln;
+use cortex_m::{iprintln, peripheral::ITM};
+
 use rtfm::app;
 
 use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
@@ -28,6 +29,7 @@ const APP: () = {
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
     static mut SERVICE: Service = ();
+    static mut ITM: ITM = ();
 
     #[init]
     fn init() {
@@ -48,15 +50,15 @@ const APP: () = {
         // 01 23 45 FF FE 67 89 AB
         let devaddr_lo = device.FICR.deviceaddr[0].read().bits();
         let devaddr_hi = device.FICR.deviceaddr[1].read().bits() as u16;
-        let extended_address = (devaddr_hi as u64) << 48
-            | ((devaddr_lo & 0xff000000) as u64) << 40
-            | ((devaddr_lo & 0x00ffffff) as u64)
-            | 0x000000fffe000000u64;
+        let extended_address = u64::from(devaddr_hi) << 48
+            | u64::from(devaddr_lo & 0xff00_0000) << 40
+            | u64::from(devaddr_lo & 0x00ff_ffff)
+            | 0x0000_00ff_fe00_0000u64;
         let extended_address = ExtendedAddress(extended_address);
 
         let mut timer1 = device.TIMER1;
         timer1.init();
-        timer1.fire_at(1, 30000000);
+        timer1.fire_at(1, 30_000_000);
 
         let uarte0 = device.UARTE0.constrain(
             uarte::Pins {
@@ -70,7 +72,7 @@ const APP: () = {
         );
 
         let mut radio = Radio::new(device.RADIO);
-        radio.set_channel(15);
+        radio.set_channel(11);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
@@ -80,14 +82,18 @@ const APP: () = {
         RADIO = radio;
         UARTE = uarte0;
         SERVICE = Service::new(extended_address);
+        ITM = core.ITM;
     }
 
-    #[interrupt(resources = [LED_1, SERVICE, RADIO, TIMER],)]
+    #[interrupt(resources = [LED_1, SERVICE, RADIO, TIMER, ITM],)]
     fn TIMER1() {
         let mut timer = resources.TIMER;
         let mut service = resources.SERVICE;
         let mut radio = resources.RADIO;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
+        let itm_port = &mut resources.ITM.stim[0];
+
+        iprintln!(itm_port, "TIMER1");
 
         (*resources.LED_1).set_low();
 
@@ -95,32 +101,33 @@ const APP: () = {
 
         match service.state() {
             MacState::Orphan => {
-                hprintln!("Orphan, beacon query").unwrap();
+                iprintln!(itm_port, "Orphan, beacon query");
             }
             MacState::ActiveScan => {
-                hprintln!("Orphan, no PAN found").unwrap();
+                iprintln!(itm_port, "Orphan, no PAN found");
             }
             MacState::Join => {
-                hprintln!("Associate with PAN").unwrap();
+                iprintln!(itm_port, "Associate with PAN");
             }
             MacState::QueryStatus => {
-                hprintln!("Query association status").unwrap();
+                iprintln!(itm_port, "Query association status");
             }
             MacState::Associated => {
-                hprintln!("Associated").unwrap();
+                iprintln!(itm_port, "Associated");
             }
         }
 
         let (size, fire_at) = service.build_packet(&mut packet);
         if size > 0 {
-            let _used = radio.queue_transmission(&mut packet[..size]);
+            iprintln!(itm_port, "SEND");
+            let _used = radio.queue_transmission(&packet[..size]);
         }
         if fire_at > 0 {
             timer.fire_at(1, fire_at);
         }
     }
 
-    #[interrupt(resources = [LED_1, LED_2, SERVICE, RADIO, TIMER, UARTE],)]
+    #[interrupt(resources = [LED_1, LED_2, SERVICE, RADIO, TIMER, UARTE, ITM],)]
     fn RADIO() {
         let mut timer = resources.TIMER;
         let uarte = resources.UARTE;
@@ -128,6 +135,7 @@ const APP: () = {
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let mut radio = resources.RADIO;
         let mut service = resources.SERVICE;
+        let itm_port = &mut resources.ITM.stim[0];
 
         (*resources.LED_1).set_high();
         (*resources.LED_2).set_high();
@@ -147,7 +155,7 @@ const APP: () = {
                     uarte.write(&host_packet[..written]).unwrap();
                 }
                 Err(_) => {
-                    hprintln!("Failed to encode packet").unwrap();
+                    iprintln!(itm_port, "Failed to encode packet");
                 }
             }
             (*resources.LED_2).set_low();

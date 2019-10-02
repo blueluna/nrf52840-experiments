@@ -1,6 +1,8 @@
 #![no_main]
 #![no_std]
 
+use core::sync::atomic::{self, Ordering};
+
 #[allow(unused_imports)]
 use panic_itm;
 
@@ -220,6 +222,8 @@ const APP: () = {
             }
         }
 
-        loop {}
+        loop {
+            atomic::compiler_fence(Ordering::SeqCst)
+        }
     }
 };

@@ -2,9 +2,10 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use panic_semihosting;
+use panic_itm;
 
-use cortex_m_semihosting::hprintln;
+use cortex_m::{iprintln, peripheral::ITM};
+
 use rtfm::app;
 
 use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
@@ -20,6 +21,7 @@ const APP: () = {
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
     static mut CHANNEL: u8 = 11;
+    static mut ITM: ITM = ();
 
     #[init]
     fn init() {
@@ -56,12 +58,14 @@ const APP: () = {
 
         RADIO = radio;
         UARTE = uarte0;
+        ITM = core.ITM;
     }
 
-    #[interrupt(resources = [CHANNEL, RADIO, UARTE],)]
+    #[interrupt(resources = [CHANNEL, RADIO, UARTE, ITM],)]
     fn RADIO() {
         let uarte = resources.UARTE;
         let radio = resources.RADIO;
+        let itm_port = &mut resources.ITM.stim[0];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
 
         let energy_level = radio.report_energy_detect();
@@ -78,7 +82,7 @@ const APP: () = {
                     uarte.write(&host_packet[..written]).unwrap();
                 }
                 Err(_) => {
-                    hprintln!("Failed to encode packet").unwrap();
+                    iprintln!(itm_port, "Failed to encode packet");
                 }
             }
             let channel = resources.CHANNEL.wrapping_add(1);
@@ -89,31 +93,31 @@ const APP: () = {
         } else {
             match radio.state() {
                 STATER::DISABLED => {
-                    hprintln!("DISABLED").unwrap();
+                    iprintln!(itm_port, "DISABLED");
                 }
                 STATER::RXRU => {
-                    hprintln!("RXRU").unwrap();
+                    iprintln!(itm_port, "RXRU");
                 }
                 STATER::RXIDLE => {
-                    hprintln!("RX IDLE").unwrap();
+                    iprintln!(itm_port, "RX IDLE");
                 }
                 STATER::RX => {
-                    hprintln!("RX").unwrap();
+                    iprintln!(itm_port, "RX");
                 }
                 STATER::RXDISABLE => {
-                    hprintln!("RX DISABLE").unwrap();
+                    iprintln!(itm_port, "RX DISABLE");
                 }
                 STATER::TXRU => {
-                    hprintln!("TXRU").unwrap();
+                    iprintln!(itm_port, "TXRU");
                 }
                 STATER::TXIDLE => {
-                    hprintln!("TX IDLE").unwrap();
+                    iprintln!(itm_port, "TX IDLE");
                 }
                 STATER::TX => {
-                    hprintln!("TX").unwrap();
+                    iprintln!(itm_port, "TX");
                 }
                 STATER::TXDISABLE => {
-                    hprintln!("TX DISABLE").unwrap();
+                    iprintln!(itm_port, "TX DISABLE");
                 }
                 _ => {}
             }

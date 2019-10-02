@@ -2,9 +2,10 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use panic_semihosting;
+use panic_itm;
 
-use cortex_m_semihosting::hprintln;
+use cortex_m::{iprintln, peripheral::ITM};
+
 use rtfm::app;
 
 use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
@@ -18,6 +19,7 @@ use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 const APP: () = {
     static mut RADIO: Radio = ();
     static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
+    static mut ITM: ITM = ();
 
     #[init]
     fn init() {
@@ -55,14 +57,17 @@ const APP: () = {
 
         RADIO = radio;
         UARTE = uarte0;
+        ITM = core.ITM;
     }
 
-    #[interrupt(resources = [RADIO, UARTE],)]
+    #[interrupt(resources = [RADIO, UARTE, ITM],)]
     fn RADIO() {
         let uarte = resources.UARTE;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
         let radio = resources.RADIO;
+        let itm_port = &mut resources.ITM.stim[0];
+
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
             match esercom::com_encode(
@@ -74,11 +79,11 @@ const APP: () = {
                     uarte.write(&host_packet[..written]).unwrap();
                 }
                 Err(_) => {
-                    hprintln!("Failed to encode packet").unwrap();
+                    iprintln!(itm_port, "Failed to encode packet");
                 }
             }
         } else {
-            hprintln!("no data").unwrap();
+            iprintln!(itm_port, "No data");
         }
     }
 };
