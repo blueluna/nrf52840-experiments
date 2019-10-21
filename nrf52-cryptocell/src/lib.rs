@@ -15,9 +15,10 @@ pub use psila_crypto::{
     BlockCipher, CryptoBackend, Error, BLOCK_SIZE, KEY_SIZE, LENGTH_FIELD_LENGTH,
 };
 
-fn clear(slice: &mut [u8])
-{
-    for v in slice.iter_mut() { *v = 0; }
+fn clear(slice: &mut [u8]) {
+    for v in slice.iter_mut() {
+        *v = 0;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

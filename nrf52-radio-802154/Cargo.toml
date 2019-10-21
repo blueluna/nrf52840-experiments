@@ -13,4 +13,4 @@ edition = "2018"
 
 [dependencies]
 nrf52840-pac = "0.8"
-ieee802154 = "0.3"
+ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", branch = "master" }
