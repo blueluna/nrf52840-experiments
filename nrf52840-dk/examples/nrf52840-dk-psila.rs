@@ -8,26 +8,24 @@ use cortex_m::{iprint, iprintln, peripheral::ITM};
 
 use rtfm::app;
 
-use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
+use nrf52840_hal::{clocks, prelude::*};
 
 use nrf52840_pac as pac;
 
 use bbqueue::{self, bbq, BBQueue};
 
-use esercom;
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::{
     radio::{Radio, MAX_PACKET_LENGHT},
     timer::Timer,
 };
-use psila_data::ExtendedAddress;
-use psila_service::PsilaService;
+use psila_data::{ExtendedAddress, Key, security::DEFAULT_LINK_KEY};
+use psila_service::{self, PsilaService};
 
 #[app(device = nrf52840_pac)]
 const APP: () = {
     static mut TIMER: pac::TIMER1 = ();
     static mut RADIO: Radio = ();
-    static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
     static mut SERVICE: PsilaService<CryptoCellBackend> = ();
     static mut ITM: ITM = ();
     static mut RX_PRODUCER: bbqueue::Producer = ();
@@ -37,7 +35,6 @@ const APP: () = {
     #[init]
     fn init() {
         let itm_port = &mut core.ITM.stim[0];
-        let p0 = device.P0.split();
         // Configure to use external clocks, and start them
         let _clocks = device
             .CLOCK
@@ -66,17 +63,6 @@ const APP: () = {
         timer1.init();
         timer1.fire_at(1, 30_000_000);
 
-        let uarte0 = device.UARTE0.constrain(
-            uarte::Pins {
-                txd: p0.p0_06.into_push_pull_output(gpio::Level::High).degrade(),
-                rxd: p0.p0_08.into_floating_input().degrade(),
-                cts: Some(p0.p0_07.into_floating_input().degrade()),
-                rts: Some(p0.p0_05.into_push_pull_output(gpio::Level::High).degrade()),
-            },
-            uarte::Parity::EXCLUDED,
-            uarte::Baudrate::BAUD115200,
-        );
-
         let mut radio = Radio::new(device.RADIO);
         radio.set_channel(11);
         radio.set_transmission_power(8);
@@ -89,11 +75,16 @@ const APP: () = {
         let (tx_producer, tx_consumer) = tx_queue.split();
 
         let cryptocell = CryptoCellBackend::new(device.CRYPTOCELL);
+        let default_link_key = Key::from(DEFAULT_LINK_KEY);
 
         TIMER = timer1;
         RADIO = radio;
-        UARTE = uarte0;
-        SERVICE = PsilaService::new(cryptocell, tx_producer, extended_address);
+        SERVICE = PsilaService::new(
+            cryptocell,
+            tx_producer,
+            extended_address,
+            default_link_key,
+            );
         ITM = core.ITM;
         RX_PRODUCER = rx_producer;
         RX_CONSUMER = rx_consumer;
@@ -106,7 +97,7 @@ const APP: () = {
         let mut service = resources.SERVICE;
         let itm_port = &mut resources.ITM.stim[0];
 
-        iprintln!(itm_port, "TIMER1");
+        iprintln!(itm_port, "TIMER");
 
         timer.ack_compare_event(1);
 
@@ -123,18 +114,33 @@ const APP: () = {
         let _ = spawn.radio_tx();
     }
 
-    #[interrupt(resources = [SERVICE, RADIO, TIMER, RX_PRODUCER, ITM], spawn = [radio_rx, radio_tx])]
+    #[interrupt(resources = [RADIO, RX_PRODUCER], spawn = [radio_rx])]
     fn RADIO() {
-        let mut timer = resources.TIMER;
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut radio = resources.RADIO;
-        let mut service = resources.SERVICE;
         let queue = resources.RX_PRODUCER;
-        let itm_port = &mut resources.ITM.stim[0];
 
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
-            let fire_at = match service.receive(&packet[1..packet_len]) {
+            if let Ok(mut grant) = queue.grant(packet_len) {
+                grant.copy_from_slice(&packet[..packet_len]);
+                queue.commit(packet_len, grant);
+                let _ = spawn.radio_rx();
+            }
+        }
+    }
+
+    #[task(resources = [ITM, RX_CONSUMER, SERVICE, TIMER], spawn = [radio_tx])]
+    fn radio_rx() {
+        let itm_port = &mut resources.ITM.stim[0];
+        let queue = resources.RX_CONSUMER;
+        let mut service = resources.SERVICE;
+        let mut timer = resources.TIMER;
+
+        if let Ok(grant) = queue.read() {
+            iprintln!(itm_port, "RX");
+            let packet_length = grant[0] as usize;
+            let fire_at = match service.receive(&grant[1..packet_length]) {
                 Ok(fire_at) => fire_at,
                 Err(e) => {
                     iprintln!(itm_port, "service receive failed, {:?}", e);
@@ -144,32 +150,9 @@ const APP: () = {
             if fire_at > 0 {
                 timer.fire_at(1, fire_at);
             }
-            if let Ok(mut grant) = queue.grant(packet_len) {
-                grant.copy_from_slice(&packet[..packet_len]);
-                queue.commit(packet_len, grant);
-                let _ = spawn.radio_rx();
-            }
-            let _ = spawn.radio_tx();
-        }
-    }
-
-    #[task(resources = [RX_CONSUMER, UARTE])]
-    fn radio_rx() {
-        let mut host_packet = [0u8; MAX_PACKET_LENGHT * 2];
-        let queue = resources.RX_CONSUMER;
-        let uarte = resources.UARTE;
-
-        if let Ok(grant) = queue.read() {
-            let packet_length = grant[0] as usize;
-            if let Ok(written) = esercom::com_encode(
-                esercom::MessageType::RadioReceive,
-                &grant[1..packet_length],
-                &mut host_packet,
-            ) {
-                uarte.write(&host_packet[..written]).unwrap();
-            }
             queue.release(packet_length, grant);
         }
+        let _ = spawn.radio_tx();
     }
 
     #[task(resources = [RADIO, TX_CONSUMER, ITM])]
@@ -180,11 +163,7 @@ const APP: () = {
 
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
-            iprintln!(itm_port, "TX Pop {} octets", packet_length);
-            for b in grant[1..=packet_length].iter() {
-                iprint!(itm_port, "{:02x} ", b);
-            }
-            iprintln!(itm_port);
+            iprintln!(itm_port, "TX");
             let _ = radio.queue_transmission(&grant[1..=packet_length]);
             queue.release(packet_length + 1, grant);
         }
