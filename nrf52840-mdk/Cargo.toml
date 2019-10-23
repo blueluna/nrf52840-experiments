@@ -15,6 +15,6 @@ cortex-m-rtfm = "0.4"
 ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", branch = "master" }
 esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch = "master" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
-bbqueue = { git = "https://github.com/jamesmunns/bbqueue" }
+bbqueue = { git = "https://github.com/jonas-schievink/bbqueue.git", branch = "rubble" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 psila-crypto = { git = "https://blueluna@bitbucket.org/blueluna/psila.git" }

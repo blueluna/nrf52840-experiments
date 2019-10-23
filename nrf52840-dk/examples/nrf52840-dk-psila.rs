@@ -4,7 +4,7 @@
 #[allow(unused_imports)]
 use panic_itm;
 
-use cortex_m::{iprint, iprintln, peripheral::ITM};
+use cortex_m::{iprintln, peripheral::ITM};
 
 use rtfm::app;
 
@@ -14,6 +14,9 @@ use nrf52840_pac as pac;
 
 use bbqueue::{self, bbq, BBQueue};
 
+use log;
+
+use nrf52_utils::logger;
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::{
     radio::{Radio, MAX_PACKET_LENGHT},
@@ -31,10 +34,13 @@ const APP: () = {
     static mut RX_PRODUCER: bbqueue::Producer = ();
     static mut RX_CONSUMER: bbqueue::Consumer = ();
     static mut TX_CONSUMER: bbqueue::Consumer = ();
+    static mut LOG_CONSUMER: bbqueue::Consumer = ();
 
     #[init]
     fn init() {
         let itm_port = &mut core.ITM.stim[0];
+        let log_consumer = logger::init();
+
         // Configure to use external clocks, and start them
         let _clocks = device
             .CLOCK
@@ -89,22 +95,22 @@ const APP: () = {
         RX_PRODUCER = rx_producer;
         RX_CONSUMER = rx_consumer;
         TX_CONSUMER = tx_consumer;
+        LOG_CONSUMER = log_consumer;
     }
 
-    #[interrupt(resources = [SERVICE, RADIO, TIMER, ITM], spawn = [radio_tx])]
+    #[interrupt(resources = [SERVICE, RADIO, TIMER], spawn = [radio_tx])]
     fn TIMER1() {
         let mut timer = resources.TIMER;
         let mut service = resources.SERVICE;
-        let itm_port = &mut resources.ITM.stim[0];
 
-        iprintln!(itm_port, "TIMER");
+        log::info!("TIMER");
 
         timer.ack_compare_event(1);
 
         let fire_at = match service.timeout() {
             Ok(time) => time,
             Err(_) => {
-                iprintln!(itm_port, "service timeout failed");
+                log::warn!("service timeout failed");
                 0
             }
         };
@@ -130,20 +136,18 @@ const APP: () = {
         }
     }
 
-    #[task(resources = [ITM, RX_CONSUMER, SERVICE, TIMER], spawn = [radio_tx])]
+    #[task(resources = [RX_CONSUMER, SERVICE, TIMER], spawn = [radio_tx])]
     fn radio_rx() {
-        let itm_port = &mut resources.ITM.stim[0];
         let queue = resources.RX_CONSUMER;
         let mut service = resources.SERVICE;
         let mut timer = resources.TIMER;
 
         if let Ok(grant) = queue.read() {
-            iprintln!(itm_port, "RX");
             let packet_length = grant[0] as usize;
             let fire_at = match service.receive(&grant[1..packet_length]) {
                 Ok(fire_at) => fire_at,
                 Err(e) => {
-                    iprintln!(itm_port, "service receive failed, {:?}", e);
+                    log::warn!("service receive failed, {:?}", e);
                     0
                 }
             };
@@ -155,17 +159,28 @@ const APP: () = {
         let _ = spawn.radio_tx();
     }
 
-    #[task(resources = [RADIO, TX_CONSUMER, ITM])]
+    #[task(resources = [RADIO, TX_CONSUMER])]
     fn radio_tx() {
         let queue = resources.TX_CONSUMER;
         let mut radio = resources.RADIO;
-        let itm_port = &mut resources.ITM.stim[0];
 
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
-            iprintln!(itm_port, "TX");
             let _ = radio.queue_transmission(&grant[1..=packet_length]);
             queue.release(packet_length + 1, grant);
+        }
+    }
+
+    #[idle(resources = [LOG_CONSUMER, ITM])]
+    fn idle() -> ! {
+        let itm_port = &mut resources.ITM.stim[0];
+        loop {
+            while let Ok(grant) = resources.LOG_CONSUMER.read() {
+                for chunk in grant.buf().chunks(256) {
+                    cortex_m::itm::write_all(itm_port, chunk);
+                }
+                resources.LOG_CONSUMER.release(grant.buf().len(), grant);
+            }
         }
     }
 

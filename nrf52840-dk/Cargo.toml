@@ -10,6 +10,7 @@ readme = "README.md"
 edition = "2018"
 
 [dev-dependencies]
+log = "0.4.8"
 nrf52840-pac = "0.8"
 nrf52840-hal = "0.8"
 cortex-m = "0.6"
@@ -20,7 +21,8 @@ ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", 
 esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch = "master" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
+nrf52-utils = { path = "../nrf52-utils" }
 psila-crypto = { git = "https://blueluna@bitbucket.org/blueluna/psila.git" }
 psila-data = { git = "https://blueluna@bitbucket.org/blueluna/psila.git", features = ["core"] }
-bbqueue = { git = "https://github.com/jamesmunns/bbqueue" }
+bbqueue = { git = "https://github.com/jonas-schievink/bbqueue.git", branch = "rubble" }
 psila-service = { git = "https://blueluna@bitbucket.org/blueluna/psila.git", features = ["core"] }
