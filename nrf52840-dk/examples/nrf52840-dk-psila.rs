@@ -98,7 +98,7 @@ const APP: () = {
         LOG_CONSUMER = log_consumer;
     }
 
-    #[interrupt(resources = [SERVICE, RADIO, TIMER], spawn = [radio_tx])]
+    #[interrupt(resources = [SERVICE, TIMER], spawn = [radio_tx])]
     fn TIMER1() {
         let mut timer = resources.TIMER;
         let mut service = resources.SERVICE;
@@ -120,23 +120,33 @@ const APP: () = {
         let _ = spawn.radio_tx();
     }
 
-    #[interrupt(resources = [RADIO, RX_PRODUCER], spawn = [radio_rx])]
+    #[interrupt(resources = [RADIO, SERVICE, RX_PRODUCER], spawn = [radio_tx])]
     fn RADIO() {
         let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
         let mut radio = resources.RADIO;
+        let mut service = resources.SERVICE;
         let queue = resources.RX_PRODUCER;
 
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
-            if let Ok(mut grant) = queue.grant(packet_len) {
-                grant.copy_from_slice(&packet[..packet_len]);
-                queue.commit(packet_len, grant);
-                let _ = spawn.radio_rx();
+            match service.handle_acknowledge(&packet[1..packet_len-1]) {
+                Ok(to_me) => {
+                    if to_me {
+                        if let Ok(mut grant) = queue.grant(packet_len) {
+                            grant.copy_from_slice(&packet[..packet_len]);
+                            queue.commit(packet_len, grant);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("service handle acknowledge failed, {:?}", e);
+                }
             }
+            let _ = spawn.radio_tx();
         }
     }
 
-    #[task(resources = [RX_CONSUMER, SERVICE, TIMER], spawn = [radio_tx])]
+    #[task(priority=1, resources = [RX_CONSUMER, SERVICE, TIMER])]
     fn radio_rx() {
         let queue = resources.RX_CONSUMER;
         let mut service = resources.SERVICE;
@@ -144,7 +154,7 @@ const APP: () = {
 
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
-            let fire_at = match service.receive(&grant[1..packet_length]) {
+            let fire_at = match service.receive(&grant[1..packet_length - 1]) {
                 Ok(fire_at) => fire_at,
                 Err(e) => {
                     log::warn!("service receive failed, {:?}", e);
@@ -156,19 +166,20 @@ const APP: () = {
             }
             queue.release(packet_length, grant);
         }
-        let _ = spawn.radio_tx();
     }
 
-    #[task(resources = [RADIO, TX_CONSUMER])]
+    #[task(resources = [RADIO, TX_CONSUMER], spawn = [radio_rx])]
     fn radio_tx() {
         let queue = resources.TX_CONSUMER;
         let mut radio = resources.RADIO;
 
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
+            log::info!("Send {} octets", packet_length);
             let _ = radio.queue_transmission(&grant[1..=packet_length]);
             queue.release(packet_length + 1, grant);
         }
+        let _ = spawn.radio_rx();
     }
 
     #[idle(resources = [LOG_CONSUMER, ITM])]
@@ -185,6 +196,7 @@ const APP: () = {
     }
 
     extern "C" {
-        fn UARTE1();
+        fn PDM();
+        fn QDEC();
     }
 };
