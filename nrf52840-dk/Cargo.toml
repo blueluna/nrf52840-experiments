@@ -17,12 +17,12 @@ cortex-m = "0.6"
 cortex-m-rt = "0.6"
 panic-itm = "0.4"
 cortex-m-rtfm = "0.4"
+bbqueue = { git = "https://github.com/jonas-schievink/bbqueue.git", branch = "rubble" }
 ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", branch = "master" }
 esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch = "master" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 nrf52-utils = { path = "../nrf52-utils" }
-psila-crypto = { git = "https://blueluna@bitbucket.org/blueluna/psila.git" }
-psila-data = { git = "https://blueluna@bitbucket.org/blueluna/psila.git", features = ["core"] }
-bbqueue = { git = "https://github.com/jonas-schievink/bbqueue.git", branch = "rubble" }
-psila-service = { git = "https://blueluna@bitbucket.org/blueluna/psila.git", features = ["core"] }
+psila-crypto = { git = "https://github.com/blueluna/psila.git" }
+psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
