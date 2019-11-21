@@ -131,7 +131,7 @@ const APP: () = {
             sec.control.pack(&mut buffer[aps_used..=aps_used]).unwrap();
 
             let mut nonce = [0u8; 13];
-            sec.get_nonce(&mut nonce);
+            let _ = sec.get_nonce(&mut nonce);
 
             let mic_bytes = sec.control.level.mic_bytes();
 

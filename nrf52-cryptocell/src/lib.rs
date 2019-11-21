@@ -557,14 +557,6 @@ impl CryptoBackend for CryptoCellBackend {
     fn aes128_ecb_encrypt_set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         self.cipher.set_key(key)
     }
-    /// Get the IV
-    fn aes128_ecb_encrypt_get_iv(&mut self, iv: &mut [u8]) -> Result<(), Error> {
-        self.cipher.get_iv(iv)
-    }
-    /// Set the IV
-    fn aes128_ecb_encrypt_set_iv(&mut self, iv: &[u8]) -> Result<(), Error> {
-        self.cipher.set_iv(iv)
-    }
     /// Process blocks of data
     fn aes128_ecb_encrypt_process_block(
         &mut self,
