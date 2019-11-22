@@ -16,7 +16,7 @@ nrf52840-hal = "0.8"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
 panic-itm = "0.4"
-cortex-m-rtfm = "0.4"
+cortex-m-rtfm = "0.5"
 bbqueue = { git = "https://github.com/jonas-schievink/bbqueue.git", branch = "rubble" }
 ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", branch = "master" }
 esercom = { git = "https://blueluna@bitbucket.org/blueluna/esercom.git", branch = "master" }

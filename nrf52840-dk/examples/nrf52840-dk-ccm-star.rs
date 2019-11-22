@@ -20,31 +20,35 @@ use psila_data::{
     security::{SecurityHeader, SecurityLevel},
 };
 
-#[app(device = nrf52840_pac)]
+#[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
-    static mut CRYPTO: CryptoCellBackend = ();
-    static mut ITM: ITM = ();
+    struct Resources {
+        crypto: CryptoCellBackend,
+        itm: ITM,
+    }
 
     #[init]
-    fn init() {
+    fn init(cx: init::Context) -> init::LateResources {
         // Configure to use external clocks, and start them
-        let _clocks = device
+        let _clocks = cx.device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
-        let cryptocell = CryptoCellBackend::new(device.CRYPTOCELL);
+        let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
 
-        ITM = core.ITM;
-        CRYPTO = cryptocell;
+        init::LateResources {
+            crypto: cryptocell,
+            itm: cx.core.ITM,
+        }
     }
 
-    #[idle(resources = [ITM, CRYPTO])]
-    fn idle() -> ! {
-        let itm_port = &mut resources.ITM.stim[0];
-        let crypto = resources.CRYPTO;
+    #[idle(resources = [itm, crypto])]
+    fn idle(cx: idle::Context) -> ! {
+        let itm_port = &mut cx.resources.itm.stim[0];
+        let crypto = cx.resources.crypto;
 
         iprintln!(itm_port, "~~~ Run some tests ~~~");
 

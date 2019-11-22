@@ -126,29 +126,33 @@ pub const DEFAULT_LINK_KEY: [u8; KEY_SIZE] = [
     0x5a, 0x69, 0x67, 0x42, 0x65, 0x65, 0x41, 0x6c, 0x6c, 0x69, 0x61, 0x6e, 0x63, 0x65, 0x30, 0x39,
 ];
 
-#[app(device = nrf52840_pac)]
+#[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
-    static mut SECURITY_SERVICE: SecurityService<CryptoCellBackend> = ();
+    struct Resources {
+        security_service: SecurityService<CryptoCellBackend>,
+    }
 
     #[init]
-    fn init() {
+    fn init(cx: init::Context) -> init::LateResources {
         // Configure to use external clocks, and start them
-        let _clocks = device
+        let _clocks = cx.device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
-        let cryptocell = CryptoCellBackend::new(device.CRYPTOCELL);
+        let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
         let security_service = SecurityService::new(cryptocell);
 
-        SECURITY_SERVICE = security_service;
+        init::LateResources {
+            security_service,
+        }
     }
 
-    #[idle(resources = [SECURITY_SERVICE])]
-    fn idle() -> ! {
-        let security_service = resources.SECURITY_SERVICE;
+    #[idle(resources = [security_service])]
+    fn idle(cx: idle::Context) -> ! {
+        let security_service = cx.resources.security_service;
 
         let key = [
             0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD,

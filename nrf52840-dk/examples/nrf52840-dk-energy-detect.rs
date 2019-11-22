@@ -16,25 +16,28 @@ use nrf52840_pac::radio::state::STATER;
 use esercom;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
-#[app(device = nrf52840_pac)]
+#[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
-    static mut RADIO: Radio = ();
-    static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
-    static mut CHANNEL: u8 = 11;
-    static mut ITM: ITM = ();
+    struct Resources {
+        radio: Radio,
+        itm: ITM,
+        uart: uarte::Uarte<pac::UARTE0>,
+        #[init(11)]
+        channel: u8,
+    }
 
     #[init]
-    fn init() {
-        let pins = device.P0.split();
+    fn init(cx: init::Context) -> init::LateResources {
+        let pins = cx.device.P0.split();
         // Configure to use external clocks, and start them
-        let _clocks = device
+        let _clocks = cx.device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
-        let uarte0 = device.UARTE0.constrain(
+        let uarte0 = cx.device.UARTE0.constrain(
             uarte::Pins {
                 txd: pins
                     .p0_06
@@ -52,20 +55,22 @@ const APP: () = {
             uarte::Baudrate::BAUD115200,
         );
 
-        let mut radio = Radio::new(device.RADIO);
+        let mut radio = Radio::new(cx.device.RADIO);
         radio.set_channel(11);
         radio.start_energy_detect(65536);
 
-        RADIO = radio;
-        UARTE = uarte0;
-        ITM = core.ITM;
+        init::LateResources {
+            radio,
+            itm: cx.core.ITM,
+            uart: uarte0,
+        }
     }
 
-    #[interrupt(resources = [CHANNEL, RADIO, UARTE, ITM],)]
-    fn RADIO() {
-        let uarte = resources.UARTE;
-        let radio = resources.RADIO;
-        let itm_port = &mut resources.ITM.stim[0];
+    #[task(binds = RADIO, resources = [channel, radio, uart, itm],)]
+    fn radio(cx: radio::Context) {
+        let uarte = cx.resources.uart;
+        let radio = cx.resources.radio;
+        let itm_port = &mut cx.resources.itm.stim[0];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
 
         let energy_level = radio.report_energy_detect();
@@ -85,10 +90,10 @@ const APP: () = {
                     iprintln!(itm_port, "Failed to encode packet");
                 }
             }
-            let channel = resources.CHANNEL.wrapping_add(1);
+            let channel = cx.resources.channel.wrapping_add(1);
             let channel = if channel > 26 { 11 } else { channel };
             radio.set_channel(channel);
-            *resources.CHANNEL = channel;
+            *cx.resources.channel = channel;
             radio.start_energy_detect(65536);
         } else {
             match radio.state() {

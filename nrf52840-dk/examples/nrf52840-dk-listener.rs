@@ -17,26 +17,28 @@ use nrf52840_pac as pac;
 use esercom;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
-#[app(device = nrf52840_pac)]
+#[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
-    static mut RADIO: Radio = ();
-    static mut ITM: ITM = ();
-    static mut UARTE: uarte::Uarte<pac::UARTE0> = ();
-    static mut RX_PRODUCER: bbqueue::Producer = ();
-    static mut RX_CONSUMER: bbqueue::Consumer = ();
+    struct Resources {
+        radio: Radio,
+        itm: ITM,
+        uart: uarte::Uarte<pac::UARTE0>,
+        rx_producer: bbqueue::Producer,
+        rx_consumer: bbqueue::Consumer,
+    }
 
     #[init]
-    fn init() {
-        let pins = device.P0.split();
+    fn init(cx: init::Context) -> init::LateResources {
+        let pins = cx.device.P0.split();
         // Configure to use external clocks, and start them
-        let _clocks = device
+        let _clocks = cx.device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
-        let uarte0 = device.UARTE0.constrain(
+        let uarte0 = cx.device.UARTE0.constrain(
             uarte::Pins {
                 txd: pins
                     .p0_06
@@ -57,22 +59,24 @@ const APP: () = {
         let bb_queue = bbq![MAX_PACKET_LENGHT * 32].unwrap();
         let (q_producer, q_consumer) = bb_queue.split();
 
-        let mut radio = Radio::new(device.RADIO);
+        let mut radio = Radio::new(cx.device.RADIO);
         radio.set_channel(11);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
-        RADIO = radio;
-        UARTE = uarte0;
-        ITM = core.ITM;
-        RX_PRODUCER = q_producer;
-        RX_CONSUMER = q_consumer;
+        init::LateResources {
+            radio,
+            itm: cx.core.ITM,
+            uart: uarte0,
+            rx_producer: q_producer,
+            rx_consumer: q_consumer,
+        }
     }
 
-    #[interrupt(resources = [RADIO, RX_PRODUCER],)]
-    fn RADIO() {
-        let radio = resources.RADIO;
-        let queue = resources.RX_PRODUCER;
+    #[task(binds = RADIO, resources = [radio, rx_producer],)]
+    fn radio(cx: radio::Context) {
+        let radio = cx.resources.radio;
+        let queue = cx.resources.rx_producer;
 
         match queue.grant(MAX_PACKET_LENGHT) {
             Ok(mut grant) => {
@@ -91,12 +95,12 @@ const APP: () = {
         }
     }
 
-    #[idle(resources = [RX_CONSUMER, UARTE, ITM])]
-    fn idle() -> ! {
+    #[idle(resources = [rx_consumer, uart, itm])]
+    fn idle(cx: idle::Context) -> ! {
         let mut host_packet = [0u8; MAX_PACKET_LENGHT * 2];
-        let queue = resources.RX_CONSUMER;
-        let uarte = resources.UARTE;
-        let itm_port = &mut resources.ITM.stim[0];
+        let queue = cx.resources.rx_consumer;
+        let uarte = cx.resources.uart;
+        let itm_port = &mut cx.resources.itm.stim[0];
 
         iprintln!(itm_port, "~ listening ~");
 
