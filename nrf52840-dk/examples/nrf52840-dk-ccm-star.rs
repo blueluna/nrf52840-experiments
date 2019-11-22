@@ -30,7 +30,8 @@ const APP: () = {
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
         // Configure to use external clocks, and start them
-        let _clocks = cx.device
+        let _clocks = cx
+            .device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()

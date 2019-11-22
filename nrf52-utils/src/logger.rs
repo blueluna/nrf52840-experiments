@@ -1,10 +1,10 @@
 //! Logging-related utilities and adapters.
 
 use {
-    bbqueue::{BBQueue, bbq, Producer, Consumer},
+    bbqueue::{bbq, BBQueue, Consumer, Producer},
     core::{cell::RefCell, fmt},
     cortex_m::interrupt::{self, Mutex},
-    log::{Log, Metadata, Record, LevelFilter},
+    log::{LevelFilter, Log, Metadata, Record},
 };
 
 /// A `fmt::Write` sink that writes to a `BBQueue`.

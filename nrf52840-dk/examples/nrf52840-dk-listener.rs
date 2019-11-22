@@ -31,7 +31,8 @@ const APP: () = {
     fn init(cx: init::Context) -> init::LateResources {
         let pins = cx.device.P0.split();
         // Configure to use external clocks, and start them
-        let _clocks = cx.device
+        let _clocks = cx
+            .device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()

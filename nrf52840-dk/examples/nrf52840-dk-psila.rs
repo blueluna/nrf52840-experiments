@@ -4,7 +4,7 @@
 #[allow(unused_imports)]
 use panic_itm;
 
-use cortex_m::{peripheral::ITM};
+use cortex_m::peripheral::ITM;
 
 use rtfm::app;
 
@@ -16,13 +16,13 @@ use bbqueue::{self, bbq, BBQueue};
 
 use log;
 
-use nrf52_utils::logger;
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::{
     radio::{Radio, MAX_PACKET_LENGHT},
     timer::Timer,
 };
-use psila_data::{ExtendedAddress, Key, security::DEFAULT_LINK_KEY};
+use nrf52_utils::logger;
+use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
 use psila_service::{self, PsilaService};
 
 #[app(device = nrf52840_pac, peripherals = true)]
@@ -43,7 +43,8 @@ const APP: () = {
         let log_consumer = logger::init();
 
         // Configure to use external clocks, and start them
-        let _clocks = cx.device
+        let _clocks = cx
+            .device
             .CLOCK
             .constrain()
             .enable_ext_hfosc()
@@ -125,7 +126,7 @@ const APP: () = {
 
         let packet_len = radio.receive(&mut packet);
         if packet_len > 0 {
-            match service.handle_acknowledge(&packet[1..packet_len-1]) {
+            match service.handle_acknowledge(&packet[1..packet_len - 1]) {
                 Ok(to_me) => {
                     if to_me {
                         if let Ok(mut grant) = queue.grant(packet_len) {
