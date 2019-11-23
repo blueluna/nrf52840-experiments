@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    - name: Install target
+      run: rustup target add armv7-unknown-linux-gnueabihf
     - name: Build
       run: cargo build --verbose
     - name: Formatting
