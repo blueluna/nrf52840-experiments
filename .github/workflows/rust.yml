@@ -8,7 +8,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Install target
-      run: rustup target add armv7-unknown-linux-gnueabihf
+      run: rustup target add thumbv7em-none-eabihf
     - name: Build
       run: cargo build --verbose
     - name: Formatting
