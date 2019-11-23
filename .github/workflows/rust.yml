@@ -7,7 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    - name: Install target
+      run: rustup target add thumbv7em-none-eabihf
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --all --exclude nrf52-cryptocell
     - name: Formatting
       run: cargo fmt -- --check
