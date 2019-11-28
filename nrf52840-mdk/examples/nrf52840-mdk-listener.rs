@@ -20,8 +20,6 @@ use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
     struct Resources {
-        led_1: gpio::Pin<gpio::Output<gpio::PushPull>>,
-        led_2: gpio::Pin<gpio::Output<gpio::PushPull>>,
         radio: Radio,
         uart: uarte::Uarte<pac::UARTE0>,
         rx_producer: bbqueue::Producer,
@@ -55,13 +53,13 @@ const APP: () = {
         let (q_producer, q_consumer) = bb_queue.split();
 
         let mut radio = Radio::new(cx.device.RADIO);
-        radio.set_channel(11);
+        radio.set_channel(15);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
+        hprintln!("Initialise late resources").unwrap();
+
         init::LateResources {
-            led_1: p0.p0_24.degrade().into_push_pull_output(gpio::Level::Low),
-            led_2: p0.p0_23.degrade().into_push_pull_output(gpio::Level::High),
             radio,
             uart: uarte0,
             rx_producer: q_producer,
@@ -69,20 +67,16 @@ const APP: () = {
         }
     }
 
-    #[task(binds = RADIO, resources = [led_1, led_2, radio, rx_producer])]
+    #[task(binds = RADIO, resources = [radio, rx_producer])]
     fn radio(cx: radio::Context) {
         let radio = cx.resources.radio;
         let queue = cx.resources.rx_producer;
-
-        (*cx.resources.led_1).set_high();
-        (*cx.resources.led_2).set_high();
 
         match queue.grant(MAX_PACKET_LENGHT) {
             Ok(mut grant) => {
                 let packet_len = radio.receive_slice(grant.buf());
                 if packet_len > 0 {
                     queue.commit(packet_len, grant);
-                    (*cx.resources.led_2).set_low();
                 } else {
                     queue.commit(0, grant);
                 }

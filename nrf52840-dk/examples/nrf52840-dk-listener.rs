@@ -61,7 +61,7 @@ const APP: () = {
         let (q_producer, q_consumer) = bb_queue.split();
 
         let mut radio = Radio::new(cx.device.RADIO);
-        radio.set_channel(11);
+        radio.set_channel(15);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 

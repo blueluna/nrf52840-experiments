@@ -361,7 +361,10 @@ impl CryptoBackend for CryptoCellBackend {
 
             cipher.process_block(&block, &mut tag)?;
 
-            cipher.process_block(&encrypted[..enc_full_block_length], decrypted)?;
+            if enc_full_block_length > 0 {
+                cipher.process_block(&encrypted[..enc_full_block_length], decrypted)?;
+            }
+
             cipher.finish(
                 &encrypted[enc_full_block_length..],
                 &mut decrypted[enc_full_block_length..],

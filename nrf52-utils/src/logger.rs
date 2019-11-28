@@ -1,11 +1,41 @@
-//! Logging-related utilities and adapters.
+//! Logging-related utilities
 
-use {
-    bbqueue::{bbq, BBQueue, Consumer, Producer},
-    core::{cell::RefCell, fmt},
-    cortex_m::interrupt::{self, Mutex},
-    log::{LevelFilter, Log, Metadata, Record},
-};
+use core::{cell::RefCell, fmt};
+
+use bbqueue::{bbq, BBQueue, Consumer, Producer};
+use cortex_m::interrupt::{self, Mutex};
+use log::{LevelFilter, Log, Metadata, Record};
+
+use crate::timer::Timer;
+
+use nrf52840_pac::{TIMER0};
+
+/// A `fmt::Write` adapter that prints a timestamp before each line.
+pub struct TimeStampLogger<T: Timer, L: fmt::Write> {
+    timer: T,
+    inner: L,
+}
+
+impl<T: Timer, L: fmt::Write> TimeStampLogger<T, L> {
+    /// Creates a new `StampedLogger` that will print to `inner` and obtains timestamps using
+    /// `timer`.
+    pub fn new(inner: L, timer: T) -> Self {
+        Self { inner, timer }
+    }
+}
+
+impl<T: Timer, L: fmt::Write> fmt::Write for TimeStampLogger<T, L> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for (i, line) in s.split('\n').enumerate() {
+            if i != 0 {
+                write!(self.inner, "\n{:10.10} - ", self.timer.now())?;
+            }
+
+            self.inner.write_str(line)?;
+        }
+        Ok(())
+    }
+}
 
 /// A `fmt::Write` sink that writes to a `BBQueue`.
 ///
@@ -85,11 +115,11 @@ impl<W: fmt::Write + Send> Log for WriteLogger<W> {
 }
 
 /// Stores the global logger used by the `log` crate.
-static mut LOGGER: Option<WriteLogger<BbqLogger>> = None;
+static mut LOGGER: Option<WriteLogger<TimeStampLogger<TIMER0, BbqLogger>>> = None;
 
-pub fn init() -> Consumer {
+pub fn init(timer: TIMER0) -> Consumer {
     let (tx, log_sink) = bbq![1024].unwrap().split();
-    let logger = BbqLogger::new(tx);
+    let logger = TimeStampLogger::new(BbqLogger::new(tx), timer);
 
     let log = WriteLogger::new(logger);
     interrupt::free(|_| unsafe {
@@ -98,8 +128,6 @@ pub fn init() -> Consumer {
         log::set_logger(LOGGER.as_ref().unwrap()).unwrap();
     });
     log::set_max_level(LevelFilter::max());
-
-    log::info!("Logger ready");
 
     log_sink
 }

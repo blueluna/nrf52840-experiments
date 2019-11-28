@@ -4,6 +4,5 @@
 
 pub mod mac;
 pub mod radio;
-pub mod timer;
 
 pub use mac::service::Service;

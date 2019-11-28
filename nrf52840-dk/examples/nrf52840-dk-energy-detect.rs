@@ -57,7 +57,7 @@ const APP: () = {
         );
 
         let mut radio = Radio::new(cx.device.RADIO);
-        radio.set_channel(11);
+        radio.set_channel(15);
         radio.start_energy_detect(65536);
 
         init::LateResources {

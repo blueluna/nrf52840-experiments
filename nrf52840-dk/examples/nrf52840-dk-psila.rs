@@ -19,9 +19,8 @@ use log;
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::{
     radio::{Radio, MAX_PACKET_LENGHT},
-    timer::Timer,
 };
-use nrf52_utils::logger;
+use nrf52_utils::{logger, timer::Timer,};
 use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
 use psila_service::{self, PsilaService};
 
@@ -40,7 +39,9 @@ const APP: () = {
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
-        let log_consumer = logger::init();
+        let mut timer0 = cx.device.TIMER0;
+        timer0.init();
+        let log_consumer = logger::init(timer0);
 
         // Configure to use external clocks, and start them
         let _clocks = cx
@@ -70,7 +71,7 @@ const APP: () = {
         timer1.fire_at(1, 30_000_000);
 
         let mut radio = Radio::new(cx.device.RADIO);
-        radio.set_channel(11);
+        radio.set_channel(15);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
@@ -112,6 +113,7 @@ const APP: () = {
             }
         };
         if fire_at > 0 {
+            log::info!("Fire at {}", fire_at);
             timer.fire_at(1, fire_at);
         }
         let _ = cx.spawn.radio_tx();
@@ -134,12 +136,12 @@ const APP: () = {
                             queue.commit(packet_len, grant);
                         }
                     }
+                    let _ = cx.spawn.radio_tx();
                 }
                 Err(e) => {
                     log::warn!("service handle acknowledge failed, {:?}", e);
                 }
             }
-            let _ = cx.spawn.radio_tx();
         }
     }
 
@@ -172,7 +174,6 @@ const APP: () = {
 
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
-            log::info!("Send {} octets", packet_length);
             let _ = radio.queue_transmission(&grant[1..=packet_length]);
             queue.release(packet_length + 1, grant);
         }

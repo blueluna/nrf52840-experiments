@@ -2,6 +2,8 @@
 
 use nrf52840_pac::{radio, RADIO};
 
+use log;
+
 const MAX_PACKET_LENGHT_REG: u8 = 129;
 /// Max packet length, 127 bytes according to the standard
 /// Here the length byte and LQI byte is added
@@ -41,6 +43,8 @@ fn clear_interrupts(radio: &mut RADIO) {
     radio.intenclr.write(|w| unsafe { w.bits(0xffff_ffff) });
 }
 
+pub const STATE_SEND: u32 = 0b_0000_0000_0000_0000_0000_0000_0000_0001;
+
 /// # 802.15.4 PHY layer implementation for nRF Radio
 ///
 /// This is work in progress.
@@ -48,6 +52,7 @@ fn clear_interrupts(radio: &mut RADIO) {
 pub struct Radio {
     radio: RADIO,
     buffer: PacketBuffer,
+    state: u32,
 }
 
 impl Radio {
@@ -106,6 +111,7 @@ impl Radio {
         Self {
             radio,
             buffer: [0u8; MAX_PACKET_LENGHT],
+            state: 0,
         }
     }
 
@@ -392,80 +398,44 @@ impl Radio {
     /// Returns the number of bytes received, or zero if no data could be received.
     ///
     pub fn receive(&mut self, buffer: &mut PacketBuffer) -> usize {
-        // PHYEND event signal
-        if self.radio.events_phyend.read().events_phyend().bit_is_set() {
-            // Clear interrupt
-            self.radio.events_phyend.reset();
-            // Re-enable receive after sending a packet
-            if self.radio.state.read().state().is_tx_idle() {
-                self.radio.shorts.reset();
-                self.radio
-                    .shorts
-                    .write(|w| w.rxready_start().enabled().phyend_start().enabled());
-                self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
-            }
-
-            let phr = self.buffer[0];
-            // Clear PHR so we do not read old data next time
-            self.buffer[0] = 0;
-            let length = (phr & 0x7f) as usize;
-            // PHR contains length of the packet in the low 7 bits, MSB
-            // indicates if this packet is a 802.11.4 packet or not
-            // 16-bit CRC has been removed, 1 octet LQI has been added to the end
-            if length > 0 && (phr & 0x80) == 0 {
-                buffer[0] = phr & 0x7f;
-                buffer[1..=length].copy_from_slice(&self.buffer[1..=length]);
-                return length;
-            }
-        }
-        if self.radio.events_ready.read().events_ready().bit_is_set() {
-            self.radio.events_ready.reset();
-            let buffer_ptr = &mut self.buffer as *mut _ as u32;
-            self.radio
-                .packetptr
-                .write(|w| unsafe { w.bits(buffer_ptr) });
-        }
-        if self
-            .radio
-            .events_ccabusy
-            .read()
-            .events_ccabusy()
-            .bit_is_set()
-        {
-            self.radio.events_ccabusy.reset();
-            self.receive_prepare();
-        }
-        0
+        self.receive_slice(&mut buffer[..])
     }
 
     pub fn receive_slice(&mut self, buffer: &mut [u8]) -> usize {
         assert!(buffer.len() >= MAX_PACKET_LENGHT);
         // PHYEND event signal
-        if self.radio.events_phyend.read().events_phyend().bit_is_set() {
+        let length = if self.radio.events_phyend.read().events_phyend().bit_is_set() {
             // Clear interrupt
             self.radio.events_phyend.reset();
-            // Re-enable receive after sending a packet
-            if self.radio.state.read().state().is_tx_idle() {
+            // PHR contains length of the packet in the low 7 bits, MSB
+            // indicates if this packet is a 802.11.4 packet or not
+            // 16-bit CRC has been removed, 1 octet LQI has been added to the end
+            let phr = self.buffer[0];
+            // Clear PHR so we do not read old data next time
+            self.buffer[0] = 0;
+            if self.state & STATE_SEND == STATE_SEND {
+                log::info!("TX end");
+                // Re-enable receive after sending a packet
                 self.radio.shorts.reset();
                 self.radio
                     .shorts
                     .write(|w| w.rxready_start().enabled().phyend_start().enabled());
                 self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
+                self.state = 0;
+                0
             }
-
-            let phr = self.buffer[0];
-            // Clear PHR so we do not read old data next time
-            self.buffer[0] = 0;
-            let length = (phr & 0x7f) as usize;
-            // PHR contains length of the packet in the low 7 bits, MSB
-            // indicates if this packet is a 802.11.4 packet or not
-            // 16-bit CRC has been removed, 1 octet LQI has been added to the end
-            if length > 0 && (phr & 0x80) == 0 {
-                buffer[0] = phr & 0x7f;
-                buffer[1..=length].copy_from_slice(&self.buffer[1..=length]);
-                return length;
+            else {
+                let length = if (phr & 0x80) == 0 {
+                    (phr & 0x7f) as usize
+                }
+                else { 0 };
+                if length > 0 {
+                    buffer[0] = phr & 0x7f;
+                    buffer[1..=length].copy_from_slice(&self.buffer[1..=length]);
+                }
+                length
             }
-        }
+        } else { 0 };
         if self.radio.events_ready.read().events_ready().bit_is_set() {
             self.radio.events_ready.reset();
             let buffer_ptr = &mut self.buffer as *mut _ as u32;
@@ -480,10 +450,11 @@ impl Radio {
             .events_ccabusy()
             .bit_is_set()
         {
+            log::info!("CCA busy");
             self.radio.events_ccabusy.reset();
             self.receive_prepare();
         }
-        0
+        length
     }
 
     /// Queue a transmission of the provided data
@@ -526,6 +497,7 @@ impl Radio {
         });
         // Start task
         self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
+        self.state |= STATE_SEND;
         data_length
     }
 
