@@ -8,7 +8,7 @@ use log::{LevelFilter, Log, Metadata, Record};
 
 use crate::timer::Timer;
 
-use nrf52840_pac::{TIMER0};
+use nrf52840_pac::TIMER0;
 
 /// A `fmt::Write` adapter that prints a timestamp before each line.
 pub struct TimeStampLogger<T: Timer, L: fmt::Write> {

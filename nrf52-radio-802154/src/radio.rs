@@ -423,19 +423,21 @@ impl Radio {
                 self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
                 self.state = 0;
                 0
-            }
-            else {
+            } else {
                 let length = if (phr & 0x80) == 0 {
                     (phr & 0x7f) as usize
-                }
-                else { 0 };
+                } else {
+                    0
+                };
                 if length > 0 {
                     buffer[0] = phr & 0x7f;
                     buffer[1..=length].copy_from_slice(&self.buffer[1..=length]);
                 }
                 length
             }
-        } else { 0 };
+        } else {
+            0
+        };
         if self.radio.events_ready.read().events_ready().bit_is_set() {
             self.radio.events_ready.reset();
             let buffer_ptr = &mut self.buffer as *mut _ as u32;

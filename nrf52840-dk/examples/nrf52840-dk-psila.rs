@@ -17,10 +17,8 @@ use bbqueue::{self, bbq, BBQueue};
 use log;
 
 use nrf52_cryptocell::CryptoCellBackend;
-use nrf52_radio_802154::{
-    radio::{Radio, MAX_PACKET_LENGHT},
-};
-use nrf52_utils::{logger, timer::Timer,};
+use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
+use nrf52_utils::{logger, timer::Timer};
 use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
 use psila_service::{self, PsilaService};
 
