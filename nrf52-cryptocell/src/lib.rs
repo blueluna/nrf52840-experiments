@@ -416,21 +416,30 @@ impl CryptoBackend for CryptoCellBackend {
                             cipher.process_block(input, &mut output)?;
                         }
                         None => {
-                            let mut block = [0u8; BLOCK_SIZE];
                             let input = iter.remainder();
-                            block[..input.len()].copy_from_slice(input);
-                            cipher.process_block(&block, &mut output)?;
+                            if !input.is_empty() {
+                                let mut block = [0u8; BLOCK_SIZE];
+                                block[..input.len()].copy_from_slice(input);
+                                cipher.process_block(&block, &mut output)?;
+                            }
                             break;
                         }
                     }
                 }
             }
 
+            let block_last = ((encrypted.len() + (BLOCK_SIZE - 1)) / BLOCK_SIZE) - 1;
+            let mut block_index = 0;
             let mut iter = decrypted[..encrypted.len()].chunks_exact(BLOCK_SIZE);
             loop {
                 match iter.next() {
                     Some(input) => {
-                        cipher.process_block(input, &mut output)?;
+                        if block_index < block_last {
+                            cipher.process_block(input, &mut output)?;
+                        }
+                        else {
+                            cipher.finish(input, &mut output)?;
+                        }
                     }
                     None => {
                         let mut block = [0u8; BLOCK_SIZE];
@@ -442,6 +451,7 @@ impl CryptoBackend for CryptoCellBackend {
                         break;
                     }
                 }
+                block_index += 1;
             }
         }
 
