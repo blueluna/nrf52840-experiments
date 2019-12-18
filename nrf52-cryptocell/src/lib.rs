@@ -436,8 +436,7 @@ impl CryptoBackend for CryptoCellBackend {
                     Some(input) => {
                         if block_index < block_last {
                             cipher.process_block(input, &mut output)?;
-                        }
-                        else {
+                        } else {
                             cipher.finish(input, &mut output)?;
                         }
                     }
