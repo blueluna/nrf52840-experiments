@@ -2,7 +2,7 @@
 
 use core::{cell::RefCell, fmt};
 
-use bbqueue::{bbq, BBQueue, Consumer, Producer};
+use bbqueue::{ArrayLength, BBBuffer, ConstBBBuffer, Consumer, Producer};
 use cortex_m::interrupt::{self, Mutex};
 use log::{LevelFilter, Log, Metadata, Record};
 
@@ -41,43 +41,28 @@ impl<T: Timer, L: fmt::Write> fmt::Write for TimeStampLogger<T, L> {
 ///
 /// The sink will panic when the `BBQueue` doesn't have enough space to the data. This is to ensure
 /// that we never block or drop data.
-pub struct BbqLogger {
-    p: Producer,
+pub struct BbqLogger<'a, N: ArrayLength<u8>>  {
+    p: Producer<'a, N>,
 }
 
-impl BbqLogger {
-    pub fn new(p: Producer) -> Self {
+impl<'a, N: ArrayLength<u8>>  BbqLogger<'a, N> {
+    pub fn new(p: Producer<'a, N>) -> Self {
         Self { p }
     }
 }
 
-impl fmt::Write for BbqLogger {
+impl<'a, N: ArrayLength<u8>> fmt::Write for BbqLogger<'a, N> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let mut bytes = s.as_bytes();
-
-        while !bytes.is_empty() {
-            let mut grant = match self.p.grant_max(bytes.len()) {
-                Ok(grant) => grant,
-                Err(_) => {
-                    let cap = self.p.capacity();
-                    let max_len = self
-                        .p
-                        .grant_max(cap)
-                        .map(|mut g| g.buf().len())
-                        .unwrap_or(0);
-                    panic!(
-                        "log buffer overflow: failed to grant {} Bytes ({} available)",
-                        bytes.len(),
-                        max_len
-                    );
-                }
-            };
-            let size = grant.buf().len();
-            grant.buf().copy_from_slice(&bytes[..size]);
-            bytes = &bytes[size..];
-            self.p.commit(size, grant);
+        let bytes = s.as_bytes();
+        match self.p.grant_exact(bytes.len()) {
+            Ok(mut grant) => {
+                grant.buf().copy_from_slice(&bytes);
+                grant.commit(bytes.len());
+            }
+            Err(_) => {
+                panic!("log buffer overflow: failed to grant {} bytes", bytes.len());
+            }
         }
-
         Ok(())
     }
 }
@@ -114,20 +99,22 @@ impl<W: fmt::Write + Send> Log for WriteLogger<W> {
     fn flush(&self) {}
 }
 
-/// Stores the global logger used by the `log` crate.
-static mut LOGGER: Option<WriteLogger<TimeStampLogger<TIMER0, BbqLogger>>> = None;
+pub use bbqueue::consts::U1024 as LogBufferSize;
 
-pub fn init(timer: TIMER0) -> Consumer {
-    let (tx, log_sink) = bbq![1024].unwrap().split();
-    let logger = TimeStampLogger::new(BbqLogger::new(tx), timer);
+static mut LOGGER: Option<WriteLogger<TimeStampLogger<TIMER0, BbqLogger<'static, LogBufferSize>>>> = None;
+
+static BUFFER: BBBuffer<LogBufferSize> = BBBuffer(ConstBBBuffer::new());
+
+pub fn init(timer: TIMER0) -> Consumer<'static, LogBufferSize> {
+    let (producer, consumer) = BUFFER.try_split().unwrap();
+    let logger = TimeStampLogger::new(BbqLogger::new(producer), timer);
 
     let log = WriteLogger::new(logger);
     interrupt::free(|_| unsafe {
-        // Safe, since we're the only thread and interrupts are off
         LOGGER = Some(log);
         log::set_logger(LOGGER.as_ref().unwrap()).unwrap();
     });
     log::set_max_level(LevelFilter::max());
 
-    log_sink
+    consumer
 }

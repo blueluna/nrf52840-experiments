@@ -12,7 +12,7 @@ use nrf52840_hal::{clocks, prelude::*};
 
 use nrf52840_pac as pac;
 
-use bbqueue::{self, bbq, BBQueue};
+use bbqueue::{self, BBBuffer, ConstBBBuffer};
 
 use log;
 
@@ -22,17 +22,23 @@ use nrf52_utils::{logger, timer::Timer};
 use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
 use psila_service::{self, PsilaService};
 
+use bbqueue::consts::U4096 as RxBufferSize;
+use bbqueue::consts::U1024 as TxBufferSize;
+
+static RX_BUFFER: BBBuffer<RxBufferSize> = BBBuffer(ConstBBBuffer::new());
+static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());
+
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
     struct Resources {
         timer: pac::TIMER1,
         radio: Radio,
-        service: PsilaService<CryptoCellBackend>,
+        service: PsilaService<'static, TxBufferSize, CryptoCellBackend>,
         itm: ITM,
-        rx_producer: bbqueue::Producer,
-        rx_consumer: bbqueue::Consumer,
-        tx_consumer: bbqueue::Consumer,
-        log_consumer: bbqueue::Consumer,
+        rx_producer: bbqueue::Producer<'static, RxBufferSize>,
+        rx_consumer: bbqueue::Consumer<'static, RxBufferSize>,
+        tx_consumer: bbqueue::Consumer<'static, TxBufferSize>,
+        log_consumer: bbqueue::Consumer<'static, logger::LogBufferSize>,
     }
 
     #[init]
@@ -73,11 +79,8 @@ const APP: () = {
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
-        let rx_queue = bbq![MAX_PACKET_LENGHT * 32].unwrap();
-        let (rx_producer, rx_consumer) = rx_queue.split();
-
-        let tx_queue = bbq![MAX_PACKET_LENGHT * 8].unwrap();
-        let (tx_producer, tx_consumer) = tx_queue.split();
+        let (rx_producer, rx_consumer) = RX_BUFFER.try_split().unwrap();
+        let (tx_producer, tx_consumer) = TX_BUFFER.try_split().unwrap();
 
         let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
         let default_link_key = Key::from(DEFAULT_LINK_KEY);
@@ -129,9 +132,9 @@ const APP: () = {
             match service.handle_acknowledge(&packet[1..packet_len - 1]) {
                 Ok(to_me) => {
                     if to_me {
-                        if let Ok(mut grant) = queue.grant(packet_len) {
+                        if let Ok(mut grant) = queue.grant_exact(packet_len) {
                             grant.copy_from_slice(&packet[..packet_len]);
-                            queue.commit(packet_len, grant);
+                            grant.commit(packet_len);
                         }
                     }
                     let _ = cx.spawn.radio_tx();
@@ -161,7 +164,7 @@ const APP: () = {
             if fire_at > 0 {
                 timer.fire_at(1, fire_at);
             }
-            queue.release(packet_length, grant);
+            grant.release(packet_length);
         }
     }
 
@@ -173,7 +176,7 @@ const APP: () = {
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
             let _ = radio.queue_transmission(&grant[1..=packet_length]);
-            queue.release(packet_length + 1, grant);
+            grant.release(packet_length + 1);
         }
         let _ = cx.spawn.radio_rx();
     }
@@ -183,10 +186,11 @@ const APP: () = {
         let itm_port = &mut cx.resources.itm.stim[0];
         loop {
             while let Ok(grant) = cx.resources.log_consumer.read() {
+                let length = grant.buf().len();
                 for chunk in grant.buf().chunks(256) {
                     cortex_m::itm::write_all(itm_port, chunk);
                 }
-                cx.resources.log_consumer.release(grant.buf().len(), grant);
+                grant.release(length);
             }
         }
     }

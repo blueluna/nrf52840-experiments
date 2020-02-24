@@ -8,7 +8,7 @@ use cortex_m::{iprintln, peripheral::ITM};
 
 use rtfm::app;
 
-use bbqueue::{self, bbq, BBQueue};
+use bbqueue::{self, BBBuffer, ConstBBBuffer};
 
 use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
 
@@ -17,14 +17,19 @@ use nrf52840_pac as pac;
 use esercom;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
+// Use a packet buffer that can hold 16 packages
+pub(crate) use bbqueue::consts::U2048 as PacketBufferSize;
+
+static PKT_BUFFER: BBBuffer<PacketBufferSize> = BBBuffer(ConstBBBuffer::new());
+
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
     struct Resources {
         radio: Radio,
         itm: ITM,
         uart: uarte::Uarte<pac::UARTE0>,
-        rx_producer: bbqueue::Producer,
-        rx_consumer: bbqueue::Consumer,
+        rx_producer: bbqueue::Producer<'static, PacketBufferSize>,
+        rx_consumer: bbqueue::Consumer<'static, PacketBufferSize>,
     }
 
     #[init]
@@ -57,8 +62,7 @@ const APP: () = {
             uarte::Baudrate::BAUD115200,
         );
 
-        let bb_queue = bbq![MAX_PACKET_LENGHT * 32].unwrap();
-        let (q_producer, q_consumer) = bb_queue.split();
+        let (q_producer, q_consumer) = PKT_BUFFER.try_split().unwrap();
 
         let mut radio = Radio::new(cx.device.RADIO);
         radio.set_channel(15);
@@ -79,13 +83,14 @@ const APP: () = {
         let radio = cx.resources.radio;
         let queue = cx.resources.rx_producer;
 
-        match queue.grant(MAX_PACKET_LENGHT) {
+        match queue.grant_exact(MAX_PACKET_LENGHT) {
             Ok(mut grant) => {
-                let packet_len = radio.receive_slice(grant.buf());
-                if packet_len > 0 {
-                    queue.commit(packet_len, grant);
-                } else {
-                    queue.commit(0, grant);
+                if grant.buf().len() < MAX_PACKET_LENGHT {
+                    grant.commit(0);
+                }
+                else {
+                    let packet_len = radio.receive_slice(grant.buf());
+                    grant.commit(packet_len);
                 }
             }
             Err(_) => {
@@ -120,7 +125,7 @@ const APP: () = {
                         iprintln!(itm_port, "Failed to encode packet");
                     }
                 }
-                queue.release(packet_length, grant);
+                grant.release(packet_length);
             }
         }
     }

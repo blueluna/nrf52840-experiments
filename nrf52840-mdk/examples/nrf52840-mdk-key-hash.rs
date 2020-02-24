@@ -241,6 +241,6 @@ const APP: () = {
             hprintln!().unwrap();
         }
 
-        loop {}
+        loop { continue; }
     }
 };
