@@ -81,8 +81,7 @@ const APP: () = {
                 if grant.buf().len() < MAX_PACKET_LENGHT {
                     hprintln!("No room in the buffer").unwrap();
                     grant.commit(0);
-                }
-                else {
+                } else {
                     let packet_len = radio.receive_slice(grant.buf());
                     grant.commit(packet_len);
                 }

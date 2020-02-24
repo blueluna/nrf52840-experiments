@@ -22,8 +22,8 @@ use nrf52_utils::{logger, timer::Timer};
 use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
 use psila_service::{self, PsilaService};
 
-use bbqueue::consts::U4096 as RxBufferSize;
 use bbqueue::consts::U1024 as TxBufferSize;
+use bbqueue::consts::U4096 as RxBufferSize;
 
 static RX_BUFFER: BBBuffer<RxBufferSize> = BBBuffer(ConstBBBuffer::new());
 static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());

@@ -41,11 +41,11 @@ impl<T: Timer, L: fmt::Write> fmt::Write for TimeStampLogger<T, L> {
 ///
 /// The sink will panic when the `BBQueue` doesn't have enough space to the data. This is to ensure
 /// that we never block or drop data.
-pub struct BbqLogger<'a, N: ArrayLength<u8>>  {
+pub struct BbqLogger<'a, N: ArrayLength<u8>> {
     p: Producer<'a, N>,
 }
 
-impl<'a, N: ArrayLength<u8>>  BbqLogger<'a, N> {
+impl<'a, N: ArrayLength<u8>> BbqLogger<'a, N> {
     pub fn new(p: Producer<'a, N>) -> Self {
         Self { p }
     }
@@ -101,7 +101,8 @@ impl<W: fmt::Write + Send> Log for WriteLogger<W> {
 
 pub use bbqueue::consts::U1024 as LogBufferSize;
 
-static mut LOGGER: Option<WriteLogger<TimeStampLogger<TIMER0, BbqLogger<'static, LogBufferSize>>>> = None;
+static mut LOGGER: Option<WriteLogger<TimeStampLogger<TIMER0, BbqLogger<'static, LogBufferSize>>>> =
+    None;
 
 static BUFFER: BBBuffer<LogBufferSize> = BBBuffer(ConstBBBuffer::new());
 
