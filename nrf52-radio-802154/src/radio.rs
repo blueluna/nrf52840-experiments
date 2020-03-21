@@ -414,7 +414,7 @@ impl Radio {
             // Clear PHR so we do not read old data next time
             self.buffer[0] = 0;
             if self.state & STATE_SEND == STATE_SEND {
-                log::info!("TX end");
+                // log::info!("TX end, {:02x}", phr);
                 // Re-enable receive after sending a packet
                 self.radio.shorts.reset();
                 self.radio
