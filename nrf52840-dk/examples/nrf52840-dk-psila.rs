@@ -56,6 +56,29 @@ const APP: () = {
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
+        let part = cx.device.FICR.info.part.read().bits();
+        let part_text = match part {
+            0x52840 => "nRF52840",
+            0x52833 => "nRF52833",
+            0x52832 => "nRF52832",
+            0x52820 => "nRF52820",
+            0x52811 => "nRF52811",
+            0x52810 => "nRF52810",
+            _ => "Unknown",
+        };
+        let variant = cx.device.FICR.info.variant.read().bits();
+        let variant_text = match variant {
+            0x41_41_41_41 => "AAAA",
+            0x42_41_41_41 => "BAAA",
+            0x43_41_41_41 => "CAAA",
+            0x41_41_42_41 => "AABA",
+            0x41_41_42_42 => "AABB",
+            0x41_41_43_41 => "AACA",
+            0x41_41_41_42 => "AAAB",
+            _ => "Unknown",
+        };
+        log::info!("Part: {} Variant: {}", part_text, variant_text);
+
         // MAC (EUI-48) address to EUI-64
         // Add FF FE in the middle
         //

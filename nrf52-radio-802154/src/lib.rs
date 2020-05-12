@@ -2,7 +2,4 @@
 
 #![no_std]
 
-pub mod mac;
 pub mod radio;
-
-pub use mac::service::Service;

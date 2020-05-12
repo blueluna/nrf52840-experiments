@@ -1,8 +1,51 @@
-//! 802.15.4 nRF52840 Radio
+//! # nRF52 802.15.4 Radio
+//!
+//! Adhering to the IEEE 802.15.4-2006 standard.
+//!
+//! ## Interframe spacing
+//!
+//! Inter-frame spacing in 802.15.4 depends on frames type and the payload
+//! length. Short frames has a short interframe spacing (SIFS) frames longer
+//! than 18 octets shall have a long interframe spacing (LIFS). Acknowledge
+//! frames shall have a special acknowledge interframe spacing (AIFS).
+//!
+//! * SIFS is aMinSIFSPeriod symbols which is 12 for our PHY
+//! * LIFS is aMinLIFSPeriod symbols which is 40 for our PHY
+//! * AIFS is aTurnaroundTime + aUnitBackoffPeriod symbols which is
+//!   12 + 20 → 32 symbols
+//!
+//! The symbol rate for O-QPSK is,
+//! > 62.5 ksymbol/s when operating in the ... 2450 MHz band
+//!
+//! Each symbol is 16 μs.
+//!
+//! * SIFS: 12 × 16 μs → 192 μs
+//! * LIFS: 40 × 16 μs → 640 μs
+//! * AIFS: 32 × 16 μs → 612 μs
+//!
+
+use core::sync::atomic::{compiler_fence, Ordering};
 
 use nrf52840_pac::{radio, RADIO};
 
-use log;
+// use log;
+
+/// Number of short interframe spacing (SIFS) symbols
+const SIFS_SYMBOLS: u32 = 12;
+/// Number of acknowledge interframe spacing (AIFS) symbols
+const AIFS_SYMBOLS: u32 = 32;
+/// Number of long interframe spacing (LIFS) symbols
+const LIFS_SYMBOLS: u32 = 40;
+
+/// Microseconds (μs) per symbol
+const MICROSECONDS_PER_SYMBOL: u32 = 16;
+
+/// Acknowledge interframe spacing (AIFS) in microseconds
+const AIFS_MICROSECONDS: u32 = MICROSECONDS_PER_SYMBOL * AIFS_SYMBOLS;
+/// Short interframe spacing (SIFS) in microseconds
+const SIFS_MICROSECONDS: u32 = MICROSECONDS_PER_SYMBOL * SIFS_SYMBOLS;
+/// Long interframe spacing (LIFS) in microseconds
+const LIFS_MICROSECONDS: u32 = MICROSECONDS_PER_SYMBOL * LIFS_SYMBOLS;
 
 const MAX_PACKET_LENGHT_REG: u8 = 129;
 /// Max packet length, 127 bytes according to the standard
@@ -41,6 +84,22 @@ pub const EVENT_PHYEND: u32 = 1 << 21;
 
 fn clear_interrupts(radio: &mut RADIO) {
     radio.intenclr.write(|w| unsafe { w.bits(0xffff_ffff) });
+}
+
+fn configure_interrupts(radio: &mut RADIO) {
+    // Configure interrupts
+    clear_interrupts(radio);
+    // Enable interrupts for READY, DISABLED, CCABUSY and PHYEND
+    radio.intenset.write(|w| {
+        w.ready()
+            .set()
+            .disabled()
+            .set()
+            .ccabusy()
+            .set()
+            .phyend()
+            .set()
+    });
 }
 
 pub const STATE_SEND: u32 = 0b_0000_0000_0000_0000_0000_0000_0000_0001;
@@ -102,11 +161,7 @@ impl Radio {
         radio.txpower.write(|w| w.txpower().pos4d_bm());
 
         // Configure interrupts
-        clear_interrupts(&mut radio);
-        // Enable interrupts for PHYEND and DISABLED
-        radio
-            .intenset
-            .write(|w| w.ready().set().phyend().set().ccabusy().set());
+        configure_interrupts(&mut radio);
 
         Self {
             radio,
@@ -120,11 +175,7 @@ impl Radio {
     }
 
     fn configure_interrupts(&mut self) {
-        // Configure interrupts
-        self.clear_interrupts();
-        self.radio
-            .intenset
-            .write(|w| w.ready().set().phyend().set().ccabusy().set());
+        configure_interrupts(&mut self.radio);
     }
 
     /// Configure channel to use
@@ -414,14 +465,6 @@ impl Radio {
             // Clear PHR so we do not read old data next time
             self.buffer[0] = 0;
             if self.state & STATE_SEND == STATE_SEND {
-                // log::info!("TX end, {:02x}", phr);
-                // Re-enable receive after sending a packet
-                self.radio.shorts.reset();
-                self.radio
-                    .shorts
-                    .write(|w| w.rxready_start().enabled().phyend_start().enabled());
-                self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
-                self.state = 0;
                 0
             } else {
                 let length = if (phr & 0x80) == 0 {
@@ -438,12 +481,30 @@ impl Radio {
         } else {
             0
         };
+        if self
+            .radio
+            .events_disabled
+            .read()
+            .events_disabled()
+            .bit_is_set()
+        {
+            // Errata 204: Always use DISABLE when switching from TX to RX.
+            self.radio.events_disabled.reset();
+            if self.state & STATE_SEND == STATE_SEND {
+                // Re-enable receive after sending a packet
+                self.radio.shorts.reset();
+                self.radio
+                    .shorts
+                    .write(|w| w.rxready_start().enabled().phyend_start().enabled());
+                self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
+                self.state = 0;
+            }
+        }
         if self.radio.events_ready.read().events_ready().bit_is_set() {
             self.radio.events_ready.reset();
-            let buffer_ptr = &mut self.buffer as *mut _ as u32;
             self.radio
                 .packetptr
-                .write(|w| unsafe { w.bits(buffer_ptr) });
+                .write(|w| unsafe { w.bits(self.buffer.as_ptr() as u32) });
         }
         if self
             .radio
@@ -482,8 +543,8 @@ impl Radio {
         //
         // The radio goes through following states when sending a 802.15.4 packet
         //
-        // enable RX -> ramp up RX -> clear channel assesment (CCA) -> CCA result
-        // CCA idle -> enable TX -> start TX -> TX -> end (PHYEND)
+        // enable RX → ramp up RX → clear channel assesment (CCA) → CCA result
+        // CCA idle → enable TX → start TX → TX → end (PHYEND) → disabled
         //
         // CCA might end up in the event CCABUSY in which there will be no transmission
         self.radio.shorts.reset();
@@ -496,7 +557,10 @@ impl Radio {
                 .enabled()
                 .ccabusy_disable()
                 .enabled()
+                .phyend_disable()
+                .enabled()
         });
+        compiler_fence(Ordering::Release);
         // Start task
         self.radio.tasks_rxen.write(|w| w.tasks_rxen().set_bit());
         self.state |= STATE_SEND;
