@@ -26,9 +26,7 @@
 
 use core::sync::atomic::{compiler_fence, Ordering};
 
-use nrf52840_pac::{radio, RADIO};
-
-// use log;
+use nrf52840_pac::{generic::Variant, radio, RADIO};
 
 /// Number of short interframe spacing (SIFS) symbols
 const SIFS_SYMBOLS: u32 = 12;
@@ -398,7 +396,7 @@ impl Radio {
 
     // Enter the disabled state
     fn enter_disabled(&mut self) {
-        if !self.state().is_disabled() {
+        if self.state() != radio::state::STATE_A::DISABLED {
             self.radio
                 .tasks_disable
                 .write(|w| w.tasks_disable().set_bit());
@@ -418,8 +416,11 @@ impl Radio {
     }
 
     /// Get the radio state
-    pub fn state(&mut self) -> radio::state::STATER {
-        self.radio.state.read().state()
+    pub fn state(&mut self) -> radio::state::STATE_A {
+        match self.radio.state.read().state().variant() {
+            Variant::Val(state) => state,
+            Variant::Res(_) => unreachable!(),
+        }
     }
 
     /// Prepare to receive data

@@ -8,12 +8,11 @@ use cortex_m::{iprintln, peripheral::ITM};
 
 use rtfm::app;
 
-use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
+use nrf52840_hal::{clocks, gpio, uarte};
 
 use nrf52840_pac as pac;
-use nrf52840_pac::radio::state::STATER;
+use nrf52840_pac::radio::state::STATE_A;
 
-use esercom;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
 #[app(device = nrf52840_pac, peripherals = true)]
@@ -28,26 +27,23 @@ const APP: () = {
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
-        let pins = cx.device.P0.split();
+        let port0 = gpio::p0::Parts::new(cx.device.P0);
         // Configure to use external clocks, and start them
-        let _clocks = cx
-            .device
-            .CLOCK
-            .constrain()
-            .enable_ext_hfosc()
+        let _clocks = clocks::Clocks::new(cx.device.CLOCK)
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
-
-        let uarte0 = cx.device.UARTE0.constrain(
+        let uarte0 = uarte::Uarte::new(
+            cx.device.UARTE0,
             uarte::Pins {
-                txd: pins
+                txd: port0
                     .p0_06
                     .into_push_pull_output(gpio::Level::High)
                     .degrade(),
-                rxd: pins.p0_08.into_floating_input().degrade(),
-                cts: Some(pins.p0_07.into_floating_input().degrade()),
+                rxd: port0.p0_08.into_floating_input().degrade(),
+                cts: Some(port0.p0_07.into_floating_input().degrade()),
                 rts: Some(
-                    pins.p0_05
+                    port0
+                        .p0_05
                         .into_push_pull_output(gpio::Level::High)
                         .degrade(),
                 ),
@@ -98,34 +94,33 @@ const APP: () = {
             radio.start_energy_detect(65536);
         } else {
             match radio.state() {
-                STATER::DISABLED => {
+                STATE_A::DISABLED => {
                     iprintln!(itm_port, "DISABLED");
                 }
-                STATER::RXRU => {
+                STATE_A::RXRU => {
                     iprintln!(itm_port, "RXRU");
                 }
-                STATER::RXIDLE => {
+                STATE_A::RXIDLE => {
                     iprintln!(itm_port, "RX IDLE");
                 }
-                STATER::RX => {
+                STATE_A::RX => {
                     iprintln!(itm_port, "RX");
                 }
-                STATER::RXDISABLE => {
+                STATE_A::RXDISABLE => {
                     iprintln!(itm_port, "RX DISABLE");
                 }
-                STATER::TXRU => {
+                STATE_A::TXRU => {
                     iprintln!(itm_port, "TXRU");
                 }
-                STATER::TXIDLE => {
+                STATE_A::TXIDLE => {
                     iprintln!(itm_port, "TX IDLE");
                 }
-                STATER::TX => {
+                STATE_A::TX => {
                     iprintln!(itm_port, "TX");
                 }
-                STATER::TXDISABLE => {
+                STATE_A::TXDISABLE => {
                     iprintln!(itm_port, "TX DISABLE");
                 }
-                _ => {}
             }
         }
     }

@@ -8,13 +8,11 @@ use cortex_m::peripheral::ITM;
 
 use rtfm::app;
 
-use nrf52840_hal::{clocks, prelude::*};
+use nrf52840_hal::clocks;
 
 use nrf52840_pac as pac;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
-
-use log;
 
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
@@ -48,11 +46,7 @@ const APP: () = {
         let log_consumer = logger::init(timer0);
 
         // Configure to use external clocks, and start them
-        let _clocks = cx
-            .device
-            .CLOCK
-            .constrain()
-            .enable_ext_hfosc()
+        let _clocks = clocks::Clocks::new(cx.device.CLOCK)
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
@@ -68,16 +62,22 @@ const APP: () = {
         };
         let variant = cx.device.FICR.info.variant.read().bits();
         let variant_text = match variant {
+            0x41_41_41_30 => "AAA0",
             0x41_41_41_41 => "AAAA",
-            0x42_41_41_41 => "BAAA",
-            0x43_41_41_41 => "CAAA",
+            0x41_41_41_42 => "AAAB",
+            0x41_41_42_30 => "AAB0",
             0x41_41_42_41 => "AABA",
             0x41_41_42_42 => "AABB",
+            0x41_41_43_30 => "AAC0",
             0x41_41_43_41 => "AACA",
-            0x41_41_41_42 => "AAAB",
+            0x41_41_43_42 => "AACB",
+            0x42_41_41_41 => "BAAA",
+            0x43_41_41_41 => "CAAA",
+            0xff_ff_ff_ff => "Unspecified",
             _ => "Unknown",
         };
         log::info!("Part: {} Variant: {}", part_text, variant_text);
+        log::info!("Variant: {:x}", variant);
 
         // MAC (EUI-48) address to EUI-64
         // Add FF FE in the middle

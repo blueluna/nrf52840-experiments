@@ -10,11 +10,10 @@ use rtfm::app;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
 
-use nrf52840_hal::{clocks, gpio, prelude::*, uarte};
+use nrf52840_hal::{clocks, gpio, uarte};
 
 use nrf52840_pac as pac;
 
-use esercom;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 
 // Use a packet buffer that can hold 16 packages
@@ -34,26 +33,23 @@ const APP: () = {
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
-        let pins = cx.device.P0.split();
+        let port0 = gpio::p0::Parts::new(cx.device.P0);
         // Configure to use external clocks, and start them
-        let _clocks = cx
-            .device
-            .CLOCK
-            .constrain()
-            .enable_ext_hfosc()
+        let _clocks = clocks::Clocks::new(cx.device.CLOCK)
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
-
-        let uarte0 = cx.device.UARTE0.constrain(
+        let uarte0 = uarte::Uarte::new(
+            cx.device.UARTE0,
             uarte::Pins {
-                txd: pins
+                txd: port0
                     .p0_06
                     .into_push_pull_output(gpio::Level::High)
                     .degrade(),
-                rxd: pins.p0_08.into_floating_input().degrade(),
-                cts: Some(pins.p0_07.into_floating_input().degrade()),
+                rxd: port0.p0_08.into_floating_input().degrade(),
+                cts: Some(port0.p0_07.into_floating_input().degrade()),
                 rts: Some(
-                    pins.p0_05
+                    port0
+                        .p0_05
                         .into_push_pull_output(gpio::Level::High)
                         .degrade(),
                 ),

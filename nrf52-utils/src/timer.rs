@@ -28,19 +28,13 @@ macro_rules! impl_timer {
                 self.events_compare[id].reset();
                 match id {
                     1 => {
-                        self.intenset.write(|w| w.compare1().set());
+                        self.intenset.write(|w| w.compare1().set_bit());
                     }
                     2 => {
-                        self.intenset.write(|w| w.compare2().set());
+                        self.intenset.write(|w| w.compare2().set_bit());
                     }
                     3 => {
-                        self.intenset.write(|w| w.compare3().set());
-                    }
-                    4 => {
-                        self.intenset.write(|w| w.compare4().set());
-                    }
-                    5 => {
-                        self.intenset.write(|w| w.compare5().set());
+                        self.intenset.write(|w| w.compare3().set_bit());
                     }
                     _ => (),
                 }
@@ -50,19 +44,13 @@ macro_rules! impl_timer {
                 assert!(id > 0 && id <= 5);
                 match id {
                     1 => {
-                        self.intenclr.write(|w| w.compare1().clear());
+                        self.intenclr.write(|w| w.compare1().clear_bit());
                     }
                     2 => {
-                        self.intenclr.write(|w| w.compare2().clear());
+                        self.intenclr.write(|w| w.compare2().clear_bit());
                     }
                     3 => {
-                        self.intenclr.write(|w| w.compare3().clear());
-                    }
-                    4 => {
-                        self.intenclr.write(|w| w.compare4().clear());
-                    }
-                    5 => {
-                        self.intenclr.write(|w| w.compare5().clear());
+                        self.intenclr.write(|w| w.compare3().clear_bit());
                     }
                     _ => (),
                 }

@@ -12,6 +12,5 @@ edition = "2018"
 
 [dependencies]
 cty = "0.2.0"
-# log = "0.4.8"
-nrf52840-pac = "0.8"
+nrf52840-pac = "0.9"
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }

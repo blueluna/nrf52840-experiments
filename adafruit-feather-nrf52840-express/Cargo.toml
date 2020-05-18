@@ -11,8 +11,8 @@ edition = "2018"
 
 [dev-dependencies]
 log = "0.4.8"
-nrf52840-pac = "0.8"
-nrf52840-hal = "0.8"
+nrf52840-pac = "0.9"
+nrf52840-hal = "0.10"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
 panic-itm = "0.4"

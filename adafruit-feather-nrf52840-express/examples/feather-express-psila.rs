@@ -8,13 +8,11 @@ use cortex_m::peripheral::ITM;
 
 use rtfm::app;
 
-use nrf52840_hal::{clocks, prelude::*};
+use nrf52840_hal::clocks;
 
 use nrf52840_pac as pac;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
-
-use log;
 
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
@@ -48,11 +46,7 @@ const APP: () = {
         let log_consumer = logger::init(timer0);
 
         // Configure to use external clocks, and start them
-        let _clocks = cx
-            .device
-            .CLOCK
-            .constrain()
-            .enable_ext_hfosc()
+        let _clocks = clocks::Clocks::new(cx.device.CLOCK)
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 

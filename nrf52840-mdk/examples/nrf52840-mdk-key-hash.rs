@@ -7,7 +7,7 @@ use panic_semihosting;
 use cortex_m_semihosting::{hprint, hprintln};
 use rtfm::app;
 
-use nrf52840_hal::{clocks, prelude::*};
+use nrf52840_hal::clocks;
 
 use nrf52_cryptocell::{self, CryptoCellBackend};
 pub use psila_crypto::{self, CryptoBackend, Error};
@@ -135,11 +135,7 @@ const APP: () = {
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
         // Configure to use external clocks, and start them
-        let _clocks = cx
-            .device
-            .CLOCK
-            .constrain()
-            .enable_ext_hfosc()
+        let _clocks = clocks::Clocks::new(cx.device.CLOCK)
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
 
