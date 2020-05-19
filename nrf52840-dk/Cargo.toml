@@ -22,7 +22,13 @@ ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", 
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
 nrf52-radio-802154 = { path = "../nrf52-radio-802154" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
+nrf52-aes-128 = { path = "../nrf52-aes-128" }
 nrf52-utils = { path = "../nrf52-utils" }
-psila-crypto = { git = "https://github.com/blueluna/psila.git" }
-psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
-psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+
+# psila-crypto = { git = "https://github.com/blueluna/psila.git" }
+# psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+# psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+
+psila-crypto = { path = "../../psila/psila-crypto" }
+psila-data = { path = "../../psila/psila-data", features = ["core"] }
+psila-service = { path = "../../psila/psila-service", features = ["core"] }
