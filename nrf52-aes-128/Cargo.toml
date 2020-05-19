@@ -15,8 +15,7 @@ cty = "0.2.0"
 aes = "0.3.2"
 byteorder = { version = "1", default-features = false }
 nrf52840-pac = "0.9"
-#psila-crypto = { git = "https://github.com/blueluna/psila.git" }
-psila-crypto = { path = "../../psila/psila-crypto" }
+psila-crypto = { git = "https://github.com/blueluna/psila.git" }
 
 [build-dependencies]
 cc = "1.0"
