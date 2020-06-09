@@ -31,6 +31,7 @@ const APP: () = {
     fn init(cx: init::Context) -> init::LateResources {
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
+            .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
         let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
