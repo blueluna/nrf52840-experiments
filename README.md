@@ -9,11 +9,6 @@ The code is split into following parts.
 
 ## Parts
 
-### nRF52840 radio
-
-`nrf52-radio-802154` is a crate for using the nRF52480 radio peripheral in
-IEEE 802.15.4 mode.
-
 ### nRF52840 crypto cell
 
 `nrf52-cryptocell` is a crate for using the nRF52480 crypto cell for AES

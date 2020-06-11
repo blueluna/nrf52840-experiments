@@ -8,68 +8,7 @@
 //! only indicate the MIC length and encryption. For the usage in Psila this
 //! byte contains more bits of information.
 
-use cty;
-
 use crate::{BLOCK_SIZE, KEY_SIZE};
-
-fn clear(slice: &mut [u8]) {
-    for v in slice.iter_mut() {
-        *v = 0;
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum EncryptDecrypt {
-    /// Encryp operation
-    Encrypt = 0,
-    /// Decryp operation
-    Decrypt = 1,
-}
-
-/// Block cipher key type
-#[derive(Clone, Debug, PartialEq)]
-pub enum KeyType {
-    /// 128-bit AES key
-    Aes128 = 0,
-    /// 192-bit AES key
-    Aes192 = 1,
-    /// 256-bit AES key
-    Aes256 = 2,
-    /// 512-bit AES key
-    Aes512 = 3,
-}
-
-/// Block cipher operation mode
-#[derive(Clone, Debug, PartialEq)]
-pub enum AesOperationMode {
-    /// Electronic codebook
-    Ecb = 0,
-    /// Chiper block chaining
-    Cbc = 1,
-    /// Chiper block chaining - message authentication code
-    CbcMac = 2,
-    /// Counter
-    Ctr = 3,
-    /// Chiper block chaining - message authentication code with extras
-    XCbcMac = 4,
-    /// Cipher-based message authentication code
-    CMac = 5,
-    /// XEX with tweak and ciphertext stealing
-    Xts = 6,
-    /// Chiper block chaining with ciphertext stealing
-    CbcCts = 7,
-    /// Output feed-back
-    Ofb = 8,
-}
-
-/// Padding type
-#[derive(Clone, Debug, PartialEq)]
-pub enum PaddingType {
-    /// None, padded with zeroes
-    None = 0,
-    /// PKCS7 padding
-    Pkcs7 = 1,
-}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -80,8 +19,6 @@ struct CryptoCellAesContext {
 extern "C" {
     /// Initialize CryptoCell runtime library
     fn SaSi_LibInit() -> u32;
-    /// Finalize library operations
-    fn SaSi_LibFini();
     /// Initialize AES context
     fn SaSi_AesInit(
         // The context to initalize
@@ -118,8 +55,6 @@ extern "C" {
     ) -> u32;
     /// Set IV (or counter) for the AES context
     fn SaSi_AesSetIv(context: *mut CryptoCellAesContext, iv: *const u8) -> u32;
-    /// Get IV (or counter) for the AES context
-    fn SaSi_AesGetIv(context: *mut CryptoCellAesContext, iv: *mut u8) -> u32;
     /// Process a block of data
     fn SaSi_AesBlock(
         // AES context
@@ -130,21 +65,6 @@ extern "C" {
         dataInSize: usize,
         // Pointer to output data
         dataOut: *mut u8,
-    ) -> u32;
-    /// Finalize a cipher operation
-    fn SaSi_AesFinish(
-        // AES context
-        context: *mut CryptoCellAesContext,
-        // Size of data to process
-        dataInSize: usize,
-        // Data to process
-        dataIn: *const u8,
-        // Size of data buffer provided
-        dataInBufferSize: usize,
-        // Pointer to output data
-        dataOut: *mut u8,
-        // Size of output buffer provided
-        DataOutBufferSize: *mut usize,
     ) -> u32;
     /// Clean up a AES context
     fn SaSi_AesFree(
