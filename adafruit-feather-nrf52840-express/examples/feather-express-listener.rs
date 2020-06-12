@@ -6,7 +6,7 @@ use panic_itm;
 
 use cortex_m::{iprintln, peripheral::ITM};
 
-use rtfm::app;
+use rtic::app;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
 

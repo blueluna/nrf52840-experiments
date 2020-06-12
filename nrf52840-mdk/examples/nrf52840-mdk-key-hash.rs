@@ -5,7 +5,7 @@
 use panic_semihosting;
 
 use cortex_m_semihosting::{hprint, hprintln};
-use rtfm::app;
+use rtic::app;
 
 use nrf52840_hal::clocks;
 

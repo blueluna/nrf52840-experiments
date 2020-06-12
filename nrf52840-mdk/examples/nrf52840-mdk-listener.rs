@@ -5,7 +5,7 @@
 use panic_semihosting;
 
 use cortex_m_semihosting::hprintln;
-use rtfm::app;
+use rtic::app;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
 

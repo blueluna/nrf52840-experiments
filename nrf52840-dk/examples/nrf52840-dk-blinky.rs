@@ -6,7 +6,7 @@ use core::fmt::Write;
 #[allow(unused_imports)]
 use panic_halt;
 
-use rtfm::app;
+use rtic::app;
 
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 

@@ -6,7 +6,7 @@ use panic_itm;
 
 use cortex_m::peripheral::ITM;
 
-use rtfm::app;
+use rtic::app;
 
 use nrf52840_hal::clocks;
 
