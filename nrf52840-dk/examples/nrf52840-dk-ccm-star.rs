@@ -3,8 +3,7 @@
 
 use core::sync::atomic::{self, Ordering};
 
-#[allow(unused_imports)]
-use panic_itm;
+use panic_itm as _;
 
 use cortex_m::{iprint, iprintln, peripheral::ITM};
 

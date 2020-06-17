@@ -1,8 +1,7 @@
 #![no_main]
 #![no_std]
 
-#[allow(unused_imports)]
-use panic_itm;
+use panic_itm as _;
 
 use cortex_m::peripheral::ITM;
 
@@ -151,21 +150,27 @@ const APP: () = {
         let service = cx.resources.service;
         let queue = cx.resources.rx_producer;
 
-        let packet_len = radio.receive(&mut packet);
-        if packet_len > 0 {
-            match service.handle_acknowledge(&packet[1..packet_len - 1]) {
-                Ok(to_me) => {
-                    if to_me {
-                        if let Ok(mut grant) = queue.grant_exact(packet_len) {
-                            grant.copy_from_slice(&packet[..packet_len]);
-                            grant.commit(packet_len);
+        match radio.receive(&mut packet) {
+            Ok(packet_len) => {
+                if packet_len > 0 {
+                    match service.handle_acknowledge(&packet[1..packet_len - 1]) {
+                        Ok(to_me) => {
+                            if to_me {
+                                if let Ok(mut grant) = queue.grant_exact(packet_len) {
+                                    grant.copy_from_slice(&packet[..packet_len]);
+                                    grant.commit(packet_len);
+                                }
+                            }
+                            let _ = cx.spawn.radio_tx();
+                        }
+                        Err(e) => {
+                            log::warn!("service handle acknowledge failed, {:?}", e);
                         }
                     }
-                    let _ = cx.spawn.radio_tx();
                 }
-                Err(e) => {
-                    log::warn!("service handle acknowledge failed, {:?}", e);
-                }
+            }
+            Err(nrf52_radio_802154::radio::Error::CcaBusy) => {
+                log::warn!("CCA Busy");
             }
         }
     }
@@ -177,8 +182,9 @@ const APP: () = {
         let timer = cx.resources.timer;
 
         if let Ok(grant) = queue.read() {
+            let timestamp = timer.now();
             let packet_length = grant[0] as usize;
-            let fire_at = match service.receive(&grant[1..packet_length - 1]) {
+            let fire_at = match service.receive(&grant[1..packet_length - 1], timestamp) {
                 Ok(fire_at) => fire_at,
                 Err(e) => {
                     log::warn!("service receive failed, {:?}", e);
@@ -200,9 +206,53 @@ const APP: () = {
 
         if let Ok(grant) = queue.read() {
             let packet_length = grant[0] as usize;
-            let _ = radio.queue_transmission(&grant[1..=packet_length]);
+            let data = &grant[1..=packet_length];
+            let _ = radio.queue_transmission(data);
+            if data.len() >= 32 {
+                log::info!("TX {} {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                    data.len(),
+                    data[0], data[1], data[2], data[3],
+                    data[4], data[5], data[6], data[7],
+                    data[8], data[9], data[10], data[11],
+                    data[12], data[13], data[14], data[15],
+                    data[16], data[17], data[18], data[19],
+                    data[20], data[21], data[22], data[23],
+                    data[24], data[25], data[26], data[27],
+                    data[28], data[29], data[30], data[31]);
+            } else if data.len() >= 16 {
+                log::info!("TX {} {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                    data.len(),
+                    data[0], data[1], data[2], data[3],
+                    data[4], data[5], data[6], data[7],
+                    data[8], data[9], data[10], data[11],
+                    data[12], data[13], data[14], data[15]);
+            } else if data.len() >= 8 {
+                log::info!(
+                    "TX {} {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                    data.len(),
+                    data[0],
+                    data[1],
+                    data[2],
+                    data[3],
+                    data[4],
+                    data[5],
+                    data[6],
+                    data[7]
+                );
+            } else if data.len() >= 4 {
+                log::info!(
+                    "TX {} {:02x}{:02x}{:02x}{:02x}",
+                    data.len(),
+                    data[0],
+                    data[1],
+                    data[2],
+                    data[3],
+                );
+            }
+            else {
+                log::info!("TX {} bytes", packet_length);
+            }
             grant.release(packet_length + 1);
-            log::info!("Send {} bytes", packet_length);
         }
         let _ = cx.spawn.radio_rx();
     }

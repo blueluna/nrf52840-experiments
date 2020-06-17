@@ -3,8 +3,7 @@
 
 use core::fmt::Write;
 
-#[allow(unused_imports)]
-use panic_halt;
+use panic_halt as _;
 
 use rtic::app;
 

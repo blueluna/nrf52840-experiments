@@ -1,10 +1,10 @@
 #![no_main]
 #![no_std]
 
-#[allow(unused_imports)]
-use panic_semihosting;
+use panic_halt as _;
 
-use cortex_m_semihosting::{hprint, hprintln};
+use rtt_target::{rprint, rprintln, rtt_init_print};
+
 use rtic::app;
 
 use nrf52840_hal::clocks;
@@ -134,6 +134,7 @@ const APP: () = {
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
+        rtt_init_print!();
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
             .enable_ext_hfosc()
@@ -183,15 +184,15 @@ const APP: () = {
                         0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E,
                     ]
                 {
-                    hprintln!("CCM Test 1 succeded").unwrap();
+                    rprintln!("CCM Test 1 succeded");
                 } else {
-                    hprintln!("CCM Test 1 failed, Mismatching output").unwrap();
+                    rprintln!("CCM Test 1 failed, Mismatching output");
                 }
             }
             Err(e) => {
-                hprintln!("CCM Test 1 failed").unwrap();
+                rprintln!("CCM Test 1 failed");
                 if let nrf52_cryptocell::Error::Other(errno) = e {
-                    hprintln!("CC Error {:08x}", errno).unwrap();
+                    rprintln!("CC Error {:08x}", errno);
                 }
             }
         }
@@ -211,13 +212,13 @@ const APP: () = {
                 0xE9, 0x99,
             ]
         {
-            hprintln!("AES ECB Test 1 succeded").unwrap();
+            rprintln!("AES ECB Test 1 succeded");
         } else {
-            hprintln!("AES ECB Test 1 failed").unwrap();
+            rprintln!("AES ECB Test 1 failed");
             for b in calculated.iter() {
-                hprint!("{:02x}", b).unwrap();
+                rprint!("{:02x}", b);
             }
-            hprintln!().unwrap();
+            rprintln!();
         }
 
         security_service
@@ -229,13 +230,13 @@ const APP: () = {
                 0x87, 0x82,
             ]
         {
-            hprintln!("AES ECB Test 2 succeded").unwrap();
+            rprintln!("AES ECB Test 2 succeded");
         } else {
-            hprintln!("AES ECB Test 2 failed").unwrap();
+            rprintln!("AES ECB Test 2 failed");
             for b in calculated.iter() {
-                hprint!("{:02x}", b).unwrap();
+                rprint!("{:02x}", b);
             }
-            hprintln!().unwrap();
+            rprintln!();
         }
 
         loop {

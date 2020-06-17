@@ -1,10 +1,8 @@
 #![no_main]
 #![no_std]
 
-#[allow(unused_imports)]
-use panic_semihosting;
+use panic_halt as _;
 
-use cortex_m_semihosting::hprintln;
 use rtic::app;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
@@ -64,8 +62,6 @@ const APP: () = {
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
-        hprintln!("Initialise late resources").unwrap();
-
         init::LateResources {
             radio,
             uart: uarte0,
@@ -82,7 +78,6 @@ const APP: () = {
         match queue.grant_exact(MAX_PACKET_LENGHT) {
             Ok(mut grant) => {
                 if grant.buf().len() < MAX_PACKET_LENGHT {
-                    hprintln!("No room in the buffer").unwrap();
                     grant.commit(0);
                 } else {
                     let packet_len = radio.receive_slice(grant.buf());
@@ -93,7 +88,6 @@ const APP: () = {
                 // Drop package
                 let mut buffer = [0u8; MAX_PACKET_LENGHT];
                 radio.receive(&mut buffer);
-                hprintln!("Failed to queue packet").unwrap();
             }
         }
     }
@@ -116,9 +110,9 @@ const APP: () = {
                         uart.write(&host_packet[..written]).unwrap();
                     }
                     Err(_) => {
-                        hprintln!("Failed to encode packet").unwrap();
                     }
                 }
+
                 grant.release(packet_length);
             }
         }

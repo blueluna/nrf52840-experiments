@@ -1,8 +1,7 @@
 #![no_main]
 #![no_std]
 
-#[allow(unused_imports)]
-use panic_itm;
+use panic_itm as _;
 
 use cortex_m::{iprintln, peripheral::ITM};
 
@@ -85,14 +84,18 @@ const APP: () = {
                 if grant.buf().len() < MAX_PACKET_LENGHT {
                     grant.commit(0);
                 } else {
-                    let packet_len = radio.receive_slice(grant.buf());
-                    grant.commit(packet_len);
+                    match radio.receive_slice(grant.buf()) {
+                        Ok(packet_len) => {
+                            grant.commit(packet_len);
+                        }
+                        Err(_) => {}
+                    }
                 }
             }
             Err(_) => {
                 // Drop package
                 let mut buffer = [0u8; MAX_PACKET_LENGHT];
-                radio.receive(&mut buffer);
+                let _ = radio.receive(&mut buffer);
             }
         }
     }
