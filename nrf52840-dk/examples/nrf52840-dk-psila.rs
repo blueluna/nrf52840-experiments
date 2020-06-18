@@ -248,8 +248,7 @@ const APP: () = {
                     data[2],
                     data[3],
                 );
-            }
-            else {
+            } else {
                 log::info!("TX {} bytes", packet_length);
             }
             grant.release(packet_length + 1);

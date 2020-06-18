@@ -109,8 +109,7 @@ const APP: () = {
                     Ok(written) => {
                         uart.write(&host_packet[..written]).unwrap();
                     }
-                    Err(_) => {
-                    }
+                    Err(_) => {}
                 }
 
                 grant.release(packet_length);
