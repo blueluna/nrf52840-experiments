@@ -85,14 +85,17 @@ const APP: () = {
                 if grant.buf().len() < MAX_PACKET_LENGHT {
                     grant.commit(0);
                 } else {
-                    let packet_len = radio.receive_slice(grant.buf());
-                    grant.commit(packet_len);
+                    if let Ok(packet_len) = radio.receive_slice(grant.buf()) {
+                        grant.commit(packet_len);
+                    } else {
+                        grant.commit(0);
+                    }
                 }
             }
             Err(_) => {
                 // Drop package
                 let mut buffer = [0u8; MAX_PACKET_LENGHT];
-                radio.receive(&mut buffer);
+                let _ = radio.receive(&mut buffer);
             }
         }
     }

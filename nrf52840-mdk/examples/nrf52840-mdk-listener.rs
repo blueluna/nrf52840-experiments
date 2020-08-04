@@ -1,7 +1,9 @@
 #![no_main]
 #![no_std]
 
-use panic_halt as _;
+use panic_rtt_target as _;
+
+use rtt_target::{rprintln, rtt_init_print};
 
 use rtic::app;
 
@@ -29,6 +31,8 @@ const APP: () = {
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
+        rtt_init_print!();
+
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
@@ -39,17 +43,12 @@ const APP: () = {
             cx.device.UARTE0,
             uarte::Pins {
                 txd: port0
-                    .p0_06
+                    .p0_20
                     .into_push_pull_output(gpio::Level::High)
                     .degrade(),
-                rxd: port0.p0_08.into_floating_input().degrade(),
-                cts: Some(port0.p0_07.into_floating_input().degrade()),
-                rts: Some(
-                    port0
-                        .p0_05
-                        .into_push_pull_output(gpio::Level::High)
-                        .degrade(),
-                ),
+                rxd: port0.p0_19.into_floating_input().degrade(),
+                cts: None,
+                rts: None,
             },
             uarte::Parity::EXCLUDED,
             uarte::Baudrate::BAUD115200,
@@ -61,6 +60,8 @@ const APP: () = {
         radio.set_channel(15);
         radio.set_transmission_power(8);
         radio.receive_prepare();
+
+        rprintln!("Initialise late resources");
 
         init::LateResources {
             radio,
@@ -80,14 +81,17 @@ const APP: () = {
                 if grant.buf().len() < MAX_PACKET_LENGHT {
                     grant.commit(0);
                 } else {
-                    let packet_len = radio.receive_slice(grant.buf());
-                    grant.commit(packet_len);
+                    if let Ok(packet_len) = radio.receive_slice(grant.buf()) {
+                        grant.commit(packet_len);
+                    } else {
+                        grant.commit(0);
+                    }
                 }
             }
             Err(_) => {
                 // Drop package
                 let mut buffer = [0u8; MAX_PACKET_LENGHT];
-                radio.receive(&mut buffer);
+                let _ = radio.receive(&mut buffer);
             }
         }
     }

@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use panic_halt as _;
+use panic_rtt_target as _;
 
 use rtt_target::{rprint, rprintln, rtt_init_print};
 

@@ -122,21 +122,27 @@ const APP: () = {
         let service = cx.resources.service;
         let queue = cx.resources.rx_producer;
 
-        let packet_len = radio.receive(&mut packet);
-        if packet_len > 0 {
-            match service.handle_acknowledge(&packet[1..packet_len - 1]) {
-                Ok(to_me) => {
-                    if to_me {
-                        if let Ok(mut grant) = queue.grant_exact(packet_len) {
-                            grant.copy_from_slice(&packet[..packet_len]);
-                            grant.commit(packet_len);
+        match radio.receive(&mut packet) {
+            Ok(packet_len) => {
+                if packet_len > 0 {
+                    match service.handle_acknowledge(&packet[1..packet_len - 1]) {
+                        Ok(to_me) => {
+                            if to_me {
+                                if let Ok(mut grant) = queue.grant_exact(packet_len) {
+                                    grant.copy_from_slice(&packet[..packet_len]);
+                                    grant.commit(packet_len);
+                                }
+                            }
+                            let _ = cx.spawn.radio_tx();
+                        }
+                        Err(e) => {
+                            log::warn!("service handle acknowledge failed, {:?}", e);
                         }
                     }
-                    let _ = cx.spawn.radio_tx();
                 }
-                Err(e) => {
-                    log::warn!("service handle acknowledge failed, {:?}", e);
-                }
+            }
+            Err(nrf52_radio_802154::radio::Error::CcaBusy) => {
+                log::warn!("CCA Busy");
             }
         }
     }
@@ -148,8 +154,9 @@ const APP: () = {
         let timer = cx.resources.timer;
 
         if let Ok(grant) = queue.read() {
+            let timestamp = timer.now();
             let packet_length = grant[0] as usize;
-            let fire_at = match service.receive(&grant[1..packet_length - 1]) {
+            let fire_at = match service.receive(&grant[1..packet_length - 1], timestamp) {
                 Ok(fire_at) => fire_at,
                 Err(e) => {
                     log::warn!("service receive failed, {:?}", e);
