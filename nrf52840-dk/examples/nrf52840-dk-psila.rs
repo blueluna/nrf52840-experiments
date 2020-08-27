@@ -25,6 +25,8 @@ use bbqueue::consts::U4096 as RxBufferSize;
 static RX_BUFFER: BBBuffer<RxBufferSize> = BBBuffer(ConstBBBuffer::new());
 static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());
 
+const TIMER_SECOND: u32 = 1_000_000;
+
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
     struct Resources {
@@ -95,7 +97,8 @@ const APP: () = {
 
         let mut timer1 = cx.device.TIMER1;
         timer1.init();
-        timer1.fire_at(1, 30_000_000);
+        timer1.fire_at(1, TIMER_SECOND * 30);
+        timer1.fire_at(2, TIMER_SECOND);
 
         let mut radio = Radio::new(cx.device.RADIO);
         radio.set_channel(15);
@@ -125,20 +128,24 @@ const APP: () = {
         let timer = cx.resources.timer;
         let service = cx.resources.service;
 
-        log::info!("TIMER");
-
-        timer.ack_compare_event(1);
-
-        let fire_at = match service.timeout() {
-            Ok(time) => time,
-            Err(_) => {
-                log::warn!("service timeout failed");
-                0
+        if timer.is_compare_event(1) {
+            timer.ack_compare_event(1);
+    
+            let fire_at = match service.timeout() {
+                Ok(time) => time,
+                Err(_) => {
+                    log::warn!("service timeout failed");
+                    0
+                }
+            };
+            if fire_at > 0 {
+                timer.fire_at(1, fire_at);
             }
-        };
-        if fire_at > 0 {
-            log::info!("Fire at {}", fire_at);
-            timer.fire_at(1, fire_at);
+        }
+        if timer.is_compare_event(2) {
+            timer.ack_compare_event(2);
+            let _ = service.update(timer.now());
+            timer.fire_plus(2, TIMER_SECOND);
         }
         let _ = cx.spawn.radio_tx();
     }
