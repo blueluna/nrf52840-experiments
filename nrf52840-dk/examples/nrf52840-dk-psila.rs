@@ -130,7 +130,7 @@ const APP: () = {
 
         if timer.is_compare_event(1) {
             timer.ack_compare_event(1);
-    
+
             let fire_at = match service.timeout() {
                 Ok(time) => time,
                 Err(_) => {

@@ -18,7 +18,7 @@ cortex-m-rt = "0.6"
 panic-itm = "0.4"
 cortex-m-rtic = "0.5"
 bbqueue = "0.4"
-ieee802154 = { git = "https://github.com/braun-embedded/rust-ieee802.15.4.git", branch = "master" }
+ieee802154 = "0.3"
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
 nrf52-radio-802154 = { git = "https://github.com/blueluna/nrf52-verktyg", features = ["52840"] }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
