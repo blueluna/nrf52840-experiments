@@ -7,17 +7,23 @@ use cortex_m::peripheral::ITM;
 
 use rtic::app;
 
-use nrf52840_hal::clocks;
+use nrf52840_hal::{clocks, gpio};
 
 use nrf52840_pac as pac;
 
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
 
+use embedded_hal::digital::v2::OutputPin;
+
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 use nrf52_utils::{logger, timer::Timer};
-use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
-use psila_service::{self, PsilaService};
+use psila_data::{
+    cluster_library::{AttributeValue, ClusterLibraryStatus},
+    security::DEFAULT_LINK_KEY,
+    ExtendedAddress, Key,
+};
+use psila_service::{self, ClusterLibraryHandler, PsilaService};
 
 use bbqueue::consts::U4096 as TxBufferSize;
 use bbqueue::consts::U4096 as RxBufferSize;
@@ -27,12 +33,88 @@ static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());
 
 const TIMER_SECOND: u32 = 1_000_000;
 
+pub struct ClusterHandler {
+    on_off: bool,
+    led: gpio::Pin<gpio::Output<gpio::PushPull>>,
+}
+
+impl ClusterHandler {
+    pub fn new(mut led: gpio::Pin<gpio::Output<gpio::PushPull>>) -> Self {
+        let _ = led.set_high();
+        Self { on_off: false, led }
+    }
+
+    pub fn set_on_off(&mut self, enable: bool) {
+        self.on_off = enable;
+        if self.on_off {
+            let _ = self.led.set_low();
+        } else {
+            let _ = self.led.set_high();
+        }
+    }
+}
+
+impl ClusterLibraryHandler for ClusterHandler {
+    fn read_attribute(
+        &self,
+        profile: u16,
+        cluster: u16,
+        attribute: u16,
+    ) -> Result<AttributeValue, ClusterLibraryStatus> {
+        match (profile, cluster, attribute) {
+            (0x0104, 0x0000, 0x0000) => Ok(AttributeValue::Unsigned8(0x02)),
+            (0x0104, 0x0000, 0x0007) => Ok(AttributeValue::Enumeration8(0x01)),
+            (0x0104, 0x0006, 0x0000) => {
+                let value = if self.on_off { 0x01 } else { 0x00 };
+                Ok(AttributeValue::Boolean(value))
+            }
+            (_, _, _) => Err(ClusterLibraryStatus::UnsupportedAttribute),
+        }
+    }
+    fn write_attribute(
+        &mut self,
+        profile: u16,
+        cluster: u16,
+        attribute: u16,
+        value: AttributeValue,
+    ) -> Result<(), ClusterLibraryStatus> {
+        match (profile, cluster, attribute, value) {
+            (0x0104, 0x0000, 0x0000, _) | (0x0104, 0x0000, 0x0007, _) => {
+                Err(ClusterLibraryStatus::ReadOnly)
+            }
+            (0x0104, 0x0006, 0x0000, AttributeValue::Boolean(value)) => {
+                self.set_on_off(value == 0x01);
+                Ok(())
+            }
+            (0x0104, 0x0006, 0x0000, _) => Err(ClusterLibraryStatus::InvalidValue),
+            (_, _, _, _) => Err(ClusterLibraryStatus::UnsupportedAttribute),
+        }
+    }
+    fn run(&mut self, profile: u16, cluster: u16, command: u8) -> Result<(), ClusterLibraryStatus> {
+        match (profile, cluster, command) {
+            (0x0104, 0x0006, 0x00) => {
+                self.set_on_off(false);
+                Ok(())
+            }
+            (0x0104, 0x0006, 0x01) => {
+                self.set_on_off(true);
+                Ok(())
+            }
+            (0x0104, 0x0006, 0x02) => {
+                self.set_on_off(!self.on_off);
+                Ok(())
+            }
+            (_, _, _) => Err(ClusterLibraryStatus::UnsupportedClusterCommand),
+        }
+    }
+}
+
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
     struct Resources {
         timer: pac::TIMER1,
         radio: Radio,
-        service: PsilaService<'static, TxBufferSize, CryptoCellBackend>,
+        service: PsilaService<'static, TxBufferSize, CryptoCellBackend, ClusterHandler>,
         itm: ITM,
         rx_producer: bbqueue::Producer<'static, RxBufferSize>,
         rx_consumer: bbqueue::Consumer<'static, RxBufferSize>,
@@ -81,6 +163,14 @@ const APP: () = {
         log::info!("Part: {} Variant: {}", part_text, variant_text);
         log::info!("Variant: {:x}", variant);
 
+        let port0 = gpio::p0::Parts::new(cx.device.P0);
+        let led_1 = port0
+            .p0_13
+            .into_push_pull_output(gpio::Level::Low)
+            .degrade();
+
+        let handler = ClusterHandler::new(led_1);
+
         // MAC (EUI-48) address to EUI-64
         // Add FF FE in the middle
         //
@@ -114,7 +204,13 @@ const APP: () = {
         init::LateResources {
             timer: timer1,
             radio,
-            service: PsilaService::new(cryptocell, tx_producer, extended_address, default_link_key),
+            service: PsilaService::new(
+                cryptocell,
+                tx_producer,
+                extended_address,
+                default_link_key,
+                handler,
+            ),
             itm: cx.core.ITM,
             rx_producer,
             rx_consumer,

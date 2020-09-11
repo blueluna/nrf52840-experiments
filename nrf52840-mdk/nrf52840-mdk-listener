@@ -1,0 +1,3 @@
+#!/bin/sh
+
+cargo embed --target thumbv7em-none-eabihf --example nrf52840-mdk-listener
