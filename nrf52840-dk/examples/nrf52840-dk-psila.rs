@@ -19,14 +19,14 @@ use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 use nrf52_utils::{logger, timer::Timer};
 use psila_data::{
-    cluster_library::{AttributeValue, ClusterLibraryStatus},
+    cluster_library::{AttributeDataType, ClusterLibraryStatus},
     security::DEFAULT_LINK_KEY,
     ExtendedAddress, Key,
 };
 use psila_service::{self, ClusterLibraryHandler, PsilaService};
 
-use bbqueue::consts::U4096 as TxBufferSize;
-use bbqueue::consts::U4096 as RxBufferSize;
+use bbqueue::consts::U1024 as TxBufferSize;
+use bbqueue::consts::U1024 as RxBufferSize;
 
 static RX_BUFFER: BBBuffer<RxBufferSize> = BBBuffer(ConstBBBuffer::new());
 static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());
@@ -60,13 +60,26 @@ impl ClusterLibraryHandler for ClusterHandler {
         profile: u16,
         cluster: u16,
         attribute: u16,
-    ) -> Result<AttributeValue, ClusterLibraryStatus> {
+        value: &mut [u8],
+    ) -> Result<(AttributeDataType, usize), ClusterLibraryStatus> {
+        log::info!(
+            "Read attribute: {:04x} {:04x} {:04x}",
+            profile,
+            cluster,
+            attribute
+        );
         match (profile, cluster, attribute) {
-            (0x0104, 0x0000, 0x0000) => Ok(AttributeValue::Unsigned8(0x02)),
-            (0x0104, 0x0000, 0x0007) => Ok(AttributeValue::Enumeration8(0x01)),
+            (0x0104, 0x0000, 0x0000) => {
+                value[0] = 0x02;
+                Ok((AttributeDataType::Unsigned8, 1))
+            }
+            (0x0104, 0x0000, 0x0007) => {
+                value[0] = 0x01;
+                Ok((AttributeDataType::Enumeration8, 1))
+            }
             (0x0104, 0x0006, 0x0000) => {
-                let value = if self.on_off { 0x01 } else { 0x00 };
-                Ok(AttributeValue::Boolean(value))
+                value[0] = if self.on_off { 0x01 } else { 0x00 };
+                Ok((AttributeDataType::Boolean, 1))
             }
             (_, _, _) => Err(ClusterLibraryStatus::UnsupportedAttribute),
         }
@@ -76,14 +89,15 @@ impl ClusterLibraryHandler for ClusterHandler {
         profile: u16,
         cluster: u16,
         attribute: u16,
-        value: AttributeValue,
+        data_type: AttributeDataType,
+        value: &[u8],
     ) -> Result<(), ClusterLibraryStatus> {
-        match (profile, cluster, attribute, value) {
+        match (profile, cluster, attribute, data_type) {
             (0x0104, 0x0000, 0x0000, _) | (0x0104, 0x0000, 0x0007, _) => {
                 Err(ClusterLibraryStatus::ReadOnly)
             }
-            (0x0104, 0x0006, 0x0000, AttributeValue::Boolean(value)) => {
-                self.set_on_off(value == 0x01);
+            (0x0104, 0x0006, 0x0000, AttributeDataType::Boolean) => {
+                self.set_on_off(value[0] == 0x01);
                 Ok(())
             }
             (0x0104, 0x0006, 0x0000, _) => Err(ClusterLibraryStatus::InvalidValue),
@@ -278,7 +292,7 @@ const APP: () = {
         }
     }
 
-    #[task(priority=1, resources = [rx_consumer, service, timer], spawn = [radio_tx])]
+    #[task(resources = [rx_consumer, service, timer], spawn = [radio_tx])]
     fn radio_rx(cx: radio_rx::Context) {
         let queue = cx.resources.rx_consumer;
         let service = cx.resources.service;
@@ -350,6 +364,14 @@ const APP: () = {
                     data[1],
                     data[2],
                     data[3],
+                );
+            } else if data.len() == 3 {
+                log::info!(
+                    "TX {} {:02x}{:02x}{:02x}",
+                    data.len(),
+                    data[0],
+                    data[1],
+                    data[2],
                 );
             } else {
                 log::info!("TX {} bytes", packet_length);
