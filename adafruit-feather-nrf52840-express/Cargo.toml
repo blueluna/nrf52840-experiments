@@ -24,8 +24,8 @@ nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 nrf52-utils = { path = "../nrf52-utils" }
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
-psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt-default"] }
-psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt-default"] }
 
 [dev-dependencies.defmt]
 git = "https://github.com/knurling-rs/defmt"
