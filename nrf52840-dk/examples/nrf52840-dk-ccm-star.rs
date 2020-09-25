@@ -32,9 +32,7 @@ const APP: () = {
             .start_lfclk();
         let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
 
-        init::LateResources {
-            crypto: cryptocell,
-        }
+        init::LateResources { crypto: cryptocell }
     }
 
     #[idle(resources = [crypto])]
