@@ -9,14 +9,26 @@ license = "MIT"
 readme = "README.md"
 edition = "2018"
 
+[dependencies.defmt]
+git = "https://github.com/knurling-rs/defmt"
+branch = "main"
+
+[dependencies.defmt-rtt]
+git = "https://github.com/knurling-rs/defmt"
+branch = "main"
+
+[dependencies.panic-probe]
+git = "https://github.com/knurling-rs/probe-run"
+branch = "main"
+
+[dependencies]
+cortex-m = "0.6"
+cortex-m-rt = "0.6"
+
 [dev-dependencies]
 log = "0.4.8"
 nrf52840-pac = "0.9"
 nrf52840-hal = "0.10"
-cortex-m = "0.6"
-cortex-m-rt = "0.6"
-panic-halt = "0.2"
-panic-itm = "0.4"
 cortex-m-rtic = "0.5"
 bbqueue = "0.4"
 ieee802154 = "0.3"
@@ -28,6 +40,20 @@ nrf52-utils = { path = "../nrf52-utils" }
 embedded-hal = { version = "0.2.3", features = ["unproven"] }
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
-psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt-default"] }
 psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
 
+[features]
+# set logging levels here
+default = [
+  "defmt-default",
+  # "dependency-a/defmt-trace",
+]
+
+# do NOT modify these features
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []

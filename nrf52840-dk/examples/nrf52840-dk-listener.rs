@@ -1,9 +1,7 @@
 #![no_main]
 #![no_std]
 
-use panic_itm as _;
-
-use cortex_m::{iprintln, peripheral::ITM};
+use nrf52840_dk as _;
 
 use rtic::app;
 
@@ -24,7 +22,6 @@ static PKT_BUFFER: BBBuffer<PacketBufferSize> = BBBuffer(ConstBBBuffer::new());
 const APP: () = {
     struct Resources {
         radio: Radio,
-        itm: ITM,
         uart: uarte::Uarte<pac::UARTE0>,
         rx_producer: bbqueue::Producer<'static, PacketBufferSize>,
         rx_consumer: bbqueue::Consumer<'static, PacketBufferSize>,
@@ -67,7 +64,6 @@ const APP: () = {
 
         init::LateResources {
             radio,
-            itm: cx.core.ITM,
             uart: uarte0,
             rx_producer: q_producer,
             rx_consumer: q_consumer,
@@ -100,14 +96,13 @@ const APP: () = {
         }
     }
 
-    #[idle(resources = [rx_consumer, uart, itm])]
+    #[idle(resources = [rx_consumer, uart])]
     fn idle(cx: idle::Context) -> ! {
         let mut host_packet = [0u8; MAX_PACKET_LENGHT * 2];
         let queue = cx.resources.rx_consumer;
         let uarte = cx.resources.uart;
-        let itm_port = &mut cx.resources.itm.stim[0];
 
-        iprintln!(itm_port, "~ listening ~");
+        defmt::info!("~ listening ~");
 
         loop {
             if let Ok(grant) = queue.read() {
@@ -121,7 +116,7 @@ const APP: () = {
                         uarte.write(&host_packet[..written]).unwrap();
                     }
                     Err(_) => {
-                        iprintln!(itm_port, "Failed to encode packet");
+                        defmt::info!("Failed to encode packet");
                     }
                 }
                 grant.release(packet_length);

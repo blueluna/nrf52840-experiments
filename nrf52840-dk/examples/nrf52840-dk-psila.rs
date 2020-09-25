@@ -1,9 +1,7 @@
 #![no_main]
 #![no_std]
 
-use panic_itm as _;
-
-use cortex_m::peripheral::ITM;
+use nrf52840_dk as _;
 
 use rtic::app;
 
@@ -17,7 +15,7 @@ use embedded_hal::digital::v2::OutputPin;
 
 use nrf52_cryptocell::CryptoCellBackend;
 use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
-use nrf52_utils::{logger, timer::Timer};
+use nrf52_utils::timer::Timer;
 use psila_data::{
     cluster_library::{AttributeDataType, ClusterLibraryStatus},
     security::DEFAULT_LINK_KEY,
@@ -62,8 +60,8 @@ impl ClusterLibraryHandler for ClusterHandler {
         attribute: u16,
         value: &mut [u8],
     ) -> Result<(AttributeDataType, usize), ClusterLibraryStatus> {
-        log::info!(
-            "Read attribute: {:04x} {:04x} {:04x}",
+        defmt::info!(
+            "Read attribute: {:u16} {:u16} {:u16}",
             profile,
             cluster,
             attribute
@@ -129,18 +127,15 @@ const APP: () = {
         timer: pac::TIMER1,
         radio: Radio,
         service: PsilaService<'static, TxBufferSize, CryptoCellBackend, ClusterHandler>,
-        itm: ITM,
         rx_producer: bbqueue::Producer<'static, RxBufferSize>,
         rx_consumer: bbqueue::Consumer<'static, RxBufferSize>,
         tx_consumer: bbqueue::Consumer<'static, TxBufferSize>,
-        log_consumer: bbqueue::Consumer<'static, logger::LogBufferSize>,
     }
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
         let mut timer0 = cx.device.TIMER0;
         timer0.init();
-        let log_consumer = logger::init(timer0);
 
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
@@ -174,8 +169,7 @@ const APP: () = {
             0xff_ff_ff_ff => "Unspecified",
             _ => "Unknown",
         };
-        log::info!("Part: {} Variant: {}", part_text, variant_text);
-        log::info!("Variant: {:x}", variant);
+        defmt::info!("Part: {:str} Variant: {:str}", part_text, variant_text);
 
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         let led_1 = port0
@@ -225,11 +219,9 @@ const APP: () = {
                 default_link_key,
                 handler,
             ),
-            itm: cx.core.ITM,
             rx_producer,
             rx_consumer,
             tx_consumer,
-            log_consumer,
         }
     }
 
@@ -244,7 +236,7 @@ const APP: () = {
             let fire_at = match service.timeout() {
                 Ok(time) => time,
                 Err(_) => {
-                    log::warn!("service timeout failed");
+                    defmt::warn!("service timeout failed");
                     0
                 }
             };
@@ -280,14 +272,14 @@ const APP: () = {
                             }
                             let _ = cx.spawn.radio_tx();
                         }
-                        Err(e) => {
-                            log::warn!("service handle acknowledge failed, {:?}", e);
+                        Err(_e) => {
+                            defmt::warn!("service handle acknowledge failed");
                         }
                     }
                 }
             }
             Err(nrf52_radio_802154::radio::Error::CcaBusy) => {
-                log::warn!("CCA Busy");
+                defmt::warn!("CCA Busy");
             }
         }
     }
@@ -303,8 +295,8 @@ const APP: () = {
             let packet_length = grant[0] as usize;
             let fire_at = match service.receive(&grant[1..packet_length - 1], timestamp) {
                 Ok(fire_at) => fire_at,
-                Err(e) => {
-                    log::warn!("service receive failed, {:?}", e);
+                Err(_e) => {
+                    defmt::warn!("service receive failed");
                     0
                 }
             };
@@ -325,74 +317,9 @@ const APP: () = {
             let packet_length = grant[0] as usize;
             let data = &grant[1..=packet_length];
             let _ = radio.queue_transmission(data);
-            if data.len() >= 32 {
-                log::info!("TX {} {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                    data.len(),
-                    data[0], data[1], data[2], data[3],
-                    data[4], data[5], data[6], data[7],
-                    data[8], data[9], data[10], data[11],
-                    data[12], data[13], data[14], data[15],
-                    data[16], data[17], data[18], data[19],
-                    data[20], data[21], data[22], data[23],
-                    data[24], data[25], data[26], data[27],
-                    data[28], data[29], data[30], data[31]);
-            } else if data.len() >= 16 {
-                log::info!("TX {} {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                    data.len(),
-                    data[0], data[1], data[2], data[3],
-                    data[4], data[5], data[6], data[7],
-                    data[8], data[9], data[10], data[11],
-                    data[12], data[13], data[14], data[15]);
-            } else if data.len() >= 8 {
-                log::info!(
-                    "TX {} {:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                    data.len(),
-                    data[0],
-                    data[1],
-                    data[2],
-                    data[3],
-                    data[4],
-                    data[5],
-                    data[6],
-                    data[7]
-                );
-            } else if data.len() >= 4 {
-                log::info!(
-                    "TX {} {:02x}{:02x}{:02x}{:02x}",
-                    data.len(),
-                    data[0],
-                    data[1],
-                    data[2],
-                    data[3],
-                );
-            } else if data.len() == 3 {
-                log::info!(
-                    "TX {} {:02x}{:02x}{:02x}",
-                    data.len(),
-                    data[0],
-                    data[1],
-                    data[2],
-                );
-            } else {
-                log::info!("TX {} bytes", packet_length);
-            }
             grant.release(packet_length + 1);
         }
         let _ = cx.spawn.radio_rx();
-    }
-
-    #[idle(resources = [log_consumer, itm])]
-    fn idle(cx: idle::Context) -> ! {
-        let itm_port = &mut cx.resources.itm.stim[0];
-        loop {
-            while let Ok(grant) = cx.resources.log_consumer.read() {
-                let length = grant.buf().len();
-                for chunk in grant.buf().chunks(256) {
-                    cortex_m::itm::write_all(itm_port, chunk);
-                }
-                grant.release(length);
-            }
-        }
     }
 
     extern "C" {

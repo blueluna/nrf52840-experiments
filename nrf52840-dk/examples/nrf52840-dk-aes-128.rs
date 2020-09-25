@@ -1,9 +1,7 @@
 #![no_main]
 #![no_std]
 
-use panic_itm as _;
-
-use cortex_m::{iprintln, peripheral::ITM};
+use nrf52840_dk as _;
 
 use rtic::app;
 
@@ -23,7 +21,6 @@ use psila_crypto::{self, BLOCK_SIZE};
 const APP: () = {
     struct Resources {
         ecb: Ecb,
-        itm: ITM,
         timer: pac::TIMER1,
     }
 
@@ -40,21 +37,19 @@ const APP: () = {
         cryptocell_init();
         init::LateResources {
             ecb: Ecb::init(cx.device.ECB, EcbData::new([0; 16], None)),
-            itm: cx.core.ITM,
             timer,
         }
     }
 
-    #[idle(resources = [itm, ecb, timer])]
+    #[idle(resources = [ecb, timer])]
     fn idle(cx: idle::Context) -> ! {
-        let itm_port = &mut cx.resources.itm.stim[0];
         let ecb = cx.resources.ecb;
         let timer = cx.resources.timer;
 
-        iprintln!(itm_port, "~~~ Run some tests ~~~");
+        defmt::info!("~~~ Run some tests ~~~");
 
         {
-            iprintln!(itm_port, "~~~ Encrypt HW AES ECB ~~~");
+            defmt::info!("~~~ Encrypt HW AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -98,20 +93,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt HW AES CTR ~~~");
+            defmt::info!("~~~ Encrypt HW AES CTR ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -160,20 +155,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt HW AES CTR ~~~");
+            defmt::info!("~~~ Decrypt HW AES CTR ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -222,20 +217,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt HW AES CBC ~~~");
+            defmt::info!("~~~ Encrypt HW AES CBC ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -284,20 +279,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt Rust AES ECB ~~~");
+            defmt::info!("~~~ Encrypt Rust AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -340,20 +335,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt Rust AES ECB ~~~");
+            defmt::info!("~~~ Decrypt Rust AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -396,20 +391,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt ASM AES ECB ~~~");
+            defmt::info!("~~~ Encrypt ASM AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -452,20 +447,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt ASM AES ECB ~~~");
+            defmt::info!("~~~ Decrypt ASM AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -508,20 +503,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt ASM AES CTR ~~~");
+            defmt::info!("~~~ Encrypt ASM AES CTR ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -570,20 +565,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt ASM AES CTR ~~~");
+            defmt::info!("~~~ Decrypt ASM AES CTR ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -632,20 +627,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt ASM AES CBC ~~~");
+            defmt::info!("~~~ Encrypt ASM AES CBC ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -694,20 +689,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt ASM AES CBC ~~~");
+            defmt::info!("~~~ Decrypt ASM AES CBC ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -756,20 +751,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Encrypt CC AES ECB ~~~");
+            defmt::info!("~~~ Encrypt CC AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -807,20 +802,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt CC AES ECB ~~~");
+            defmt::info!("~~~ Decrypt CC AES ECB ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -858,20 +853,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
         /*
         {
-            iprintln!(itm_port, "~~~ Encrypt CC AES CBC Chunks ~~~");
+            defmt::info!("~~~ Encrypt CC AES CBC Chunks ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -920,20 +915,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt CC AES CBC Chunks ~~~");
+            defmt::info!("~~~ Decrypt CC AES CBC Chunks ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -982,21 +977,21 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
         */
 
         {
-            iprintln!(itm_port, "~~~ Encrypt CC AES CBC ~~~");
+            defmt::info!("~~~ Encrypt CC AES CBC ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -1039,20 +1034,20 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         {
-            iprintln!(itm_port, "~~~ Decrypt CC AES CBC ~~~");
+            defmt::info!("~~~ Decrypt CC AES CBC ~~~");
             // Test vectors taken from NIST Special Publication 800-38A
             // Recommendation for Block Cipher Modes of Operation - Methods and Techniques
             let key = [
@@ -1095,16 +1090,16 @@ const APP: () = {
                 .zip(result.chunks_exact(BLOCK_SIZE))
             {
                 if calculated != correct {
-                    iprintln!(itm_port, "Block mimatch");
+                    defmt::info!("Block mimatch");
                     errors += 1;
                 }
             }
             if errors == 0 {
-                iprintln!(itm_port, "SUCCESS");
+                defmt::info!("SUCCESS");
             } else {
-                iprintln!(itm_port, "FAIL");
+                defmt::info!("FAIL");
             }
-            iprintln!(itm_port, "took {} us", elapsed);
+            defmt::info!("took {:u32} us", elapsed);
         }
 
         loop {

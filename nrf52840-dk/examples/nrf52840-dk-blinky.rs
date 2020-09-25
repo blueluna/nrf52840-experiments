@@ -1,9 +1,9 @@
 #![no_main]
 #![no_std]
 
-use core::fmt::Write;
+use nrf52840_dk as _;
 
-use panic_halt as _;
+use core::fmt::Write;
 
 use rtic::app;
 

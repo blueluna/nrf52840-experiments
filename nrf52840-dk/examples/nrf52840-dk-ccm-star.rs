@@ -1,11 +1,9 @@
 #![no_main]
 #![no_std]
 
+use nrf52840_dk as _;
+
 use core::sync::atomic::{self, Ordering};
-
-use panic_itm as _;
-
-use cortex_m::{iprint, iprintln, peripheral::ITM};
 
 use rtic::app;
 
@@ -23,7 +21,6 @@ use psila_data::{
 const APP: () = {
     struct Resources {
         crypto: CryptoCellBackend,
-        itm: ITM,
     }
 
     #[init]
@@ -37,16 +34,14 @@ const APP: () = {
 
         init::LateResources {
             crypto: cryptocell,
-            itm: cx.core.ITM,
         }
     }
 
-    #[idle(resources = [itm, crypto])]
+    #[idle(resources = [crypto])]
     fn idle(cx: idle::Context) -> ! {
-        let itm_port = &mut cx.resources.itm.stim[0];
         let crypto = cx.resources.crypto;
 
-        iprintln!(itm_port, "~~~ Run some tests ~~~");
+        defmt::info!("~~~ Run some tests ~~~");
 
         {
             let key = [
@@ -83,15 +78,15 @@ const APP: () = {
                             0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E,
                         ]
                     {
-                        iprintln!(itm_port, "CCM Test 1 succeded");
+                        defmt::info!("CCM Test 1 succeded");
                     } else {
-                        iprintln!(itm_port, "CCM Test 1 failed, Mismatching output");
+                        defmt::info!("CCM Test 1 failed, Mismatching output");
                     }
                 }
                 Err(e) => {
-                    iprintln!(itm_port, "CCM Test 1 failed");
+                    defmt::info!("CCM Test 1 failed");
                     if let nrf52_cryptocell::Error::Other(errno) = e {
-                        iprintln!(itm_port, "CC Error {:08x}", errno);
+                        defmt::info!("CC Error {:u32}", errno);
                     }
                 }
             }
@@ -156,18 +151,18 @@ const APP: () = {
                         if output[..16] == correct_output[..16]
                             && output[16..size] == correct_output[16..]
                         {
-                            iprintln!(itm_port, "CCM Test 2 succeded");
+                            defmt::info!("CCM Test 2 succeded");
                         } else {
-                            iprintln!(itm_port, "CCM Test 2, Incorrect response");
+                            defmt::info!("CCM Test 2, Incorrect response");
                         }
                     } else {
-                        iprintln!(itm_port, "CCM Test 2, Incorrect length {}", size);
+                        defmt::info!("CCM Test 2, Incorrect length {:usize}", size);
                     }
                 }
                 Err(e) => {
-                    iprintln!(itm_port, "Failed to decrypt payload");
+                    defmt::info!("Failed to decrypt payload");
                     if let nrf52_cryptocell::Error::Other(errno) = e {
-                        iprintln!(itm_port, "CC Error {:08x}", errno);
+                        defmt::info!("CC Error {:u32}", errno);
                     }
                 }
             }
@@ -202,21 +197,18 @@ const APP: () = {
                             && output[16..size] == correct_output[16..]
                             && mic == correct_mic
                         {
-                            iprintln!(itm_port, "CCM Test 3 succeded");
+                            defmt::info!("CCM Test 3 succeded");
                         } else {
-                            for (a, b) in mic.iter().zip(correct_mic.iter()) {
-                                iprint!(itm_port, "{:02x} {:02x} ", a, b);
-                            }
-                            iprintln!(itm_port, "CCM Test 3, Incorrect response");
+                            defmt::info!("CCM Test 3, Incorrect response");
                         }
                     } else {
-                        iprintln!(itm_port, "CCM Test 3, Incorrect length {}", size);
+                        defmt::info!("CCM Test 3, Incorrect length {:?}", size);
                     }
                 }
                 Err(e) => {
-                    iprintln!(itm_port, "Failed to decrypt payload");
+                    defmt::info!("Failed to decrypt payload");
                     if let nrf52_cryptocell::Error::Other(errno) = e {
-                        iprintln!(itm_port, "CC Error {:08x}", errno);
+                        defmt::info!("CC Error {:u32}", errno);
                     }
                 }
             }

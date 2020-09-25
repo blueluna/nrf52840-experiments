@@ -1,9 +1,7 @@
 #![no_main]
 #![no_std]
 
-use panic_itm as _;
-
-use cortex_m::{iprintln, peripheral::ITM};
+use nrf52840_dk as _;
 
 use rtic::app;
 
@@ -18,7 +16,6 @@ use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 const APP: () = {
     struct Resources {
         radio: Radio,
-        itm: ITM,
         uart: uarte::Uarte<pac::UARTE0>,
         #[init(11)]
         channel: u8,
@@ -58,16 +55,14 @@ const APP: () = {
 
         init::LateResources {
             radio,
-            itm: cx.core.ITM,
             uart: uarte0,
         }
     }
 
-    #[task(binds = RADIO, resources = [channel, radio, uart, itm],)]
+    #[task(binds = RADIO, resources = [channel, radio, uart],)]
     fn radio(cx: radio::Context) {
         let uarte = cx.resources.uart;
         let radio = cx.resources.radio;
-        let itm_port = &mut cx.resources.itm.stim[0];
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
 
         let energy_level = radio.report_energy_detect();
@@ -84,7 +79,7 @@ const APP: () = {
                     uarte.write(&host_packet[..written]).unwrap();
                 }
                 Err(_) => {
-                    iprintln!(itm_port, "Failed to encode packet");
+                    defmt::info!("Failed to encode packet");
                 }
             }
             let channel = cx.resources.channel.wrapping_add(1);
@@ -95,31 +90,31 @@ const APP: () = {
         } else {
             match radio.state() {
                 STATE_A::DISABLED => {
-                    iprintln!(itm_port, "DISABLED");
+                    defmt::info!("DISABLED");
                 }
                 STATE_A::RXRU => {
-                    iprintln!(itm_port, "RXRU");
+                    defmt::info!("RXRU");
                 }
                 STATE_A::RXIDLE => {
-                    iprintln!(itm_port, "RX IDLE");
+                    defmt::info!("RX IDLE");
                 }
                 STATE_A::RX => {
-                    iprintln!(itm_port, "RX");
+                    defmt::info!("RX");
                 }
                 STATE_A::RXDISABLE => {
-                    iprintln!(itm_port, "RX DISABLE");
+                    defmt::info!("RX DISABLE");
                 }
                 STATE_A::TXRU => {
-                    iprintln!(itm_port, "TXRU");
+                    defmt::info!("TXRU");
                 }
                 STATE_A::TXIDLE => {
-                    iprintln!(itm_port, "TX IDLE");
+                    defmt::info!("TX IDLE");
                 }
                 STATE_A::TX => {
-                    iprintln!(itm_port, "TX");
+                    defmt::info!("TX");
                 }
                 STATE_A::TXDISABLE => {
-                    iprintln!(itm_port, "TX DISABLE");
+                    defmt::info!("TX DISABLE");
                 }
             }
         }
