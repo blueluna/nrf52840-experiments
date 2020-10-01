@@ -31,6 +31,9 @@ static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());
 
 const TIMER_SECOND: u32 = 1_000_000;
 
+const MANUFACTURER_NAME: &'static str = "ERIK of Sweden";
+const MODEL_IDENTIFIER: &'static str = "Lampan";
+
 pub struct ClusterHandler {
     on_off: bool,
     led: gpio::Pin<gpio::Output<gpio::PushPull>>,
@@ -70,6 +73,18 @@ impl ClusterLibraryHandler for ClusterHandler {
             (0x0104, 0x0000, 0x0000) => {
                 value[0] = 0x02;
                 Ok((AttributeDataType::Unsigned8, 1))
+            }
+            (0x0104, 0x0000, 0x0004) => {
+                value[0] = MANUFACTURER_NAME.len() as u8;
+                let end = MANUFACTURER_NAME.len() + 1;
+                value[1..end].copy_from_slice(MANUFACTURER_NAME.as_bytes());
+                Ok((AttributeDataType::CharacterString, end))
+            }
+            (0x0104, 0x0000, 0x0005) => {
+                value[0] = MODEL_IDENTIFIER.len() as u8;
+                let end = MODEL_IDENTIFIER.len() + 1;
+                value[1..end].copy_from_slice(MODEL_IDENTIFIER.as_bytes());
+                Ok((AttributeDataType::CharacterString, end))
             }
             (0x0104, 0x0000, 0x0007) => {
                 value[0] = 0x01;
@@ -142,7 +157,7 @@ const APP: () = {
             .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
-
+        /*
         let part = cx.device.FICR.info.part.read().bits();
         let part_text = match part {
             0x52840 => "nRF52840",
@@ -170,6 +185,7 @@ const APP: () = {
             _ => "Unknown",
         };
         defmt::info!("Part: {:str} Variant: {:str}", part_text, variant_text);
+        */
 
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         let led_1 = port0
@@ -270,11 +286,20 @@ const APP: () = {
                                     grant.commit(packet_len);
                                 }
                             }
-                            let _ = cx.spawn.radio_tx();
                         }
-                        Err(_e) => {
-                            defmt::warn!("service handle acknowledge failed");
-                        }
+                        Err(e) => match e {
+                            psila_service::Error::MalformedPacket => {
+                                defmt::warn!(
+                                    "service handle acknowledge failed, malformed package"
+                                );
+                            }
+                            psila_service::Error::NotEnoughSpace => {
+                                defmt::warn!("service handle acknowledge failed, queue full");
+                            }
+                            _ => {
+                                defmt::warn!("service handle acknowledge failed");
+                            }
+                        },
                     }
                 }
             }
@@ -282,6 +307,7 @@ const APP: () = {
                 defmt::warn!("CCA Busy");
             }
         }
+        let _ = cx.spawn.radio_tx();
     }
 
     #[task(resources = [rx_consumer, service, timer], spawn = [radio_tx])]
@@ -313,17 +339,18 @@ const APP: () = {
         let queue = cx.resources.tx_consumer;
         let radio = cx.resources.radio;
 
-        if let Ok(grant) = queue.read() {
-            let packet_length = grant[0] as usize;
-            let data = &grant[1..=packet_length];
-            let _ = radio.queue_transmission(data);
-            grant.release(packet_length + 1);
+        if !radio.is_tx_busy() {
+            if let Ok(grant) = queue.read() {
+                let packet_length = grant[0] as usize;
+                let data = &grant[1..=packet_length];
+                let _ = radio.queue_transmission(data);
+                grant.release(packet_length + 1);
+            }
+            let _ = cx.spawn.radio_rx();
         }
-        let _ = cx.spawn.radio_rx();
     }
 
     extern "C" {
-        fn PDM();
         fn QDEC();
     }
 };
