@@ -480,10 +480,10 @@ impl CryptoBackend for CryptoCellBackend {
         output: &mut [u8],
     ) -> Result<usize, psila_crypto::Error> {
         let mut new_mic = [0u8; BLOCK_SIZE];
+        let mut buffer = [0u8; 128];
         // Generate a MIC
         {
             let aad_blocks = (aad.len() + LENGTH_FIELD_LENGTH + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-            let mut buffer = [0u8; 256];
             let mut offset = 0;
 
             buffer[0] = Self::make_flag(aad.len(), mic.len(), LENGTH_FIELD_LENGTH);
@@ -510,11 +510,18 @@ impl CryptoBackend for CryptoCellBackend {
             );
             cipher.set_key(key)?;
 
+            let block_last = ((offset + (BLOCK_SIZE - 1)) / BLOCK_SIZE) - 1;
+            let mut block_index = 0;
             let mut iter = buffer[..offset].chunks_exact(BLOCK_SIZE);
             loop {
                 match iter.next() {
                     Some(input) => {
-                        cipher.process_block(&input, &mut new_mic)?;
+                        if block_index < block_last {
+                            cipher.process_block(&input, &mut new_mic)?;
+                        } else {
+                            cipher.finish(&input, &mut new_mic)?;
+                            break;
+                        }
                     }
                     None => {
                         let mut block = [0u8; BLOCK_SIZE];
@@ -523,12 +530,12 @@ impl CryptoBackend for CryptoCellBackend {
                         break;
                     }
                 }
+                block_index += 1;
             }
         }
+        clear(&mut buffer[..]);
         {
             let message_blocks = (message.len() + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
-            let mut buffer = [0u8; 256];
-            let mut encrypted = [0u8; 256];
             let mut offset = 0;
 
             buffer[..message.len()].copy_from_slice(message);
@@ -551,14 +558,13 @@ impl CryptoBackend for CryptoCellBackend {
             block[..mic.len()].copy_from_slice(&new_mic[..mic.len()]);
             cipher.process_block(&block, &mut tag)?;
 
-            for (o, i) in encrypted[..offset]
+            for (o, i) in output[..offset]
                 .chunks_mut(BLOCK_SIZE)
                 .zip(buffer.chunks(BLOCK_SIZE))
             {
                 cipher.process_block(i, o)?;
             }
 
-            output[..message.len()].copy_from_slice(&encrypted[..message.len()]);
             mic.copy_from_slice(&tag[..mic.len()]);
         }
 
