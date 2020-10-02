@@ -117,7 +117,13 @@ impl ClusterLibraryHandler for ClusterHandler {
             (_, _, _, _) => Err(ClusterLibraryStatus::UnsupportedAttribute),
         }
     }
-    fn run(&mut self, profile: u16, cluster: u16, command: u8) -> Result<(), ClusterLibraryStatus> {
+    fn run(
+        &mut self,
+        profile: u16,
+        cluster: u16,
+        command: u8,
+        _arguments: &[u8],
+    ) -> Result<(), ClusterLibraryStatus> {
         match (profile, cluster, command) {
             (0x0104, 0x0006, 0x00) => {
                 self.set_on_off(false);
@@ -157,35 +163,6 @@ const APP: () = {
             .enable_ext_hfosc()
             .set_lfclk_src_external(clocks::LfOscConfiguration::NoExternalNoBypass)
             .start_lfclk();
-        /*
-        let part = cx.device.FICR.info.part.read().bits();
-        let part_text = match part {
-            0x52840 => "nRF52840",
-            0x52833 => "nRF52833",
-            0x52832 => "nRF52832",
-            0x52820 => "nRF52820",
-            0x52811 => "nRF52811",
-            0x52810 => "nRF52810",
-            _ => "Unknown",
-        };
-        let variant = cx.device.FICR.info.variant.read().bits();
-        let variant_text = match variant {
-            0x41_41_41_30 => "AAA0",
-            0x41_41_41_41 => "AAAA",
-            0x41_41_41_42 => "AAAB",
-            0x41_41_42_30 => "AAB0",
-            0x41_41_42_41 => "AABA",
-            0x41_41_42_42 => "AABB",
-            0x41_41_43_30 => "AAC0",
-            0x41_41_43_41 => "AACA",
-            0x41_41_43_42 => "AACB",
-            0x42_41_41_41 => "BAAA",
-            0x43_41_41_41 => "CAAA",
-            0xff_ff_ff_ff => "Unspecified",
-            _ => "Unknown",
-        };
-        defmt::info!("Part: {:str} Variant: {:str}", part_text, variant_text);
-        */
 
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         let led_1 = port0
