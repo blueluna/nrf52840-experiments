@@ -16,6 +16,7 @@ use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
 use nrf52_utils::timer::Timer;
 use psila_data::{
     cluster_library::{AttributeDataType, ClusterLibraryStatus},
+    device_profile::SimpleDescriptor,
     security::DEFAULT_LINK_KEY,
     ExtendedAddress, Key,
 };
@@ -114,10 +115,27 @@ impl ClusterHandler {
 }
 
 impl ClusterLibraryHandler for ClusterHandler {
+    fn active_endpoints(&self) -> &[u8] {
+        &[0x01]
+    }
+    fn get_simple_desciptor(&self, endpoint: u8) -> Option<SimpleDescriptor> {
+        match endpoint {
+            0x01 => Some(SimpleDescriptor::new(
+                0x01,
+                0x0104,
+                0x0102,
+                0,
+                &[0x0000, 0x0006, 0x0008, 0x0300],
+                &[],
+            )),
+            _ => None,
+        }
+    }
     fn read_attribute(
         &self,
         profile: u16,
         cluster: u16,
+        _endpoint: u8,
         attribute: u16,
         value: &mut [u8],
     ) -> Result<(AttributeDataType, usize), ClusterLibraryStatus> {
@@ -187,6 +205,7 @@ impl ClusterLibraryHandler for ClusterHandler {
         &mut self,
         profile: u16,
         cluster: u16,
+        _endpoint: u8,
         attribute: u16,
         data_type: AttributeDataType,
         value: &[u8],
@@ -207,6 +226,7 @@ impl ClusterLibraryHandler for ClusterHandler {
         &mut self,
         profile: u16,
         cluster: u16,
+        _endpoint: u8,
         command: u8,
         arguments: &[u8],
     ) -> Result<(), ClusterLibraryStatus> {
@@ -450,7 +470,7 @@ const APP: () = {
 
         let mut timer1 = cx.device.TIMER1;
         timer1.init();
-        timer1.fire_at(1, TIMER_SECOND * 30);
+        timer1.fire_at(1, TIMER_SECOND * 10);
         timer1.fire_at(2, TIMER_SECOND);
 
         let mut radio = Radio::new(cx.device.RADIO);
