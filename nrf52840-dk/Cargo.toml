@@ -33,10 +33,9 @@ cortex-m-rtic = "0.5"
 bbqueue = "0.4"
 ieee802154 = "0.3"
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
-nrf52-radio-802154 = { git = "https://github.com/blueluna/nrf52-verktyg", features = ["52840"] }
+psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 nrf52-aes-128 = { path = "../nrf52-aes-128" }
-nrf52-utils = { path = "../nrf52-utils" }
 embedded-hal = { version = "0.2.3", features = ["unproven"] }
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }

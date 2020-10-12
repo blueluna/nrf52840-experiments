@@ -11,7 +11,7 @@ use nrf52840_hal::{clocks, gpio, uarte};
 
 use nrf52840_pac as pac;
 
-use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
+use psila_nrf52::radio::{Radio, MAX_PACKET_LENGHT};
 
 // Use a packet buffer that can hold 16 packages
 pub(crate) use bbqueue::consts::U2048 as PacketBufferSize;

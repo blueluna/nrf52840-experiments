@@ -36,9 +36,8 @@ bbqueue = "0.4"
 ieee802154 = "0.3"
 byteorder = { version = "1", default-features = false }
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
-nrf52-radio-802154 = { git = "https://github.com/blueluna/nrf52-verktyg", features = ["52840"] }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
-nrf52-utils = { path = "../nrf52-utils" }
+psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
 psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
@@ -48,7 +47,6 @@ smart-leds-trait = "0.2.0"
 smart-leds = "0.3.0"
 nrf-smartled = { version = "0.2.0", features = ["52840"] }
 palette = { version = "0.5", default-features = false, features = ["libm"] }
-
 
 [features]
 # set logging levels here

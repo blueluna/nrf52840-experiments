@@ -12,8 +12,7 @@ use nrf52840_pac as pac;
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
 
 use nrf52_cryptocell::CryptoCellBackend;
-use nrf52_radio_802154::radio::{Radio, MAX_PACKET_LENGHT};
-use nrf52_utils::timer::Timer;
+use psila_nrf52::{radio::{Radio, MAX_PACKET_LENGHT}, timer::Timer};
 use psila_data::{
     cluster_library::{AttributeDataType, ClusterLibraryStatus},
     device_profile::SimpleDescriptor,
@@ -470,8 +469,7 @@ const APP: () = {
 
         let mut timer1 = cx.device.TIMER1;
         timer1.init();
-        timer1.fire_at(1, TIMER_SECOND * 10);
-        timer1.fire_at(2, TIMER_SECOND);
+        timer1.fire_in(1, TIMER_SECOND);
 
         let mut radio = Radio::new(cx.device.RADIO);
         radio.set_channel(15);
@@ -507,22 +505,8 @@ const APP: () = {
 
         if timer.is_compare_event(1) {
             timer.ack_compare_event(1);
-
-            let fire_at = match service.timeout() {
-                Ok(time) => time,
-                Err(_) => {
-                    defmt::warn!("service timeout failed");
-                    0
-                }
-            };
-            if fire_at > 0 {
-                timer.fire_at(1, fire_at);
-            }
-        }
-        if timer.is_compare_event(2) {
-            timer.ack_compare_event(2);
             let _ = service.update(timer.now());
-            timer.fire_plus(2, TIMER_SECOND);
+            timer.fire_in(1, TIMER_SECOND);
         }
         let _ = cx.spawn.radio_tx();
     }
@@ -562,7 +546,7 @@ const APP: () = {
                     }
                 }
             }
-            Err(nrf52_radio_802154::radio::Error::CcaBusy) => {
+            Err(psila_nrf52::radio::Error::CcaBusy) => {
                 defmt::warn!("CCA Busy");
             }
         }
@@ -573,20 +557,12 @@ const APP: () = {
     fn radio_rx(cx: radio_rx::Context) {
         let queue = cx.resources.rx_consumer;
         let service = cx.resources.service;
-        let timer = cx.resources.timer;
 
         if let Ok(grant) = queue.read() {
-            let timestamp = timer.now();
+            let timestamp = cx.resources.timer.now();
             let packet_length = grant[0] as usize;
-            let fire_at = match service.receive(&grant[1..packet_length - 1], timestamp) {
-                Ok(fire_at) => fire_at,
-                Err(_e) => {
-                    defmt::warn!("service receive failed");
-                    0
-                }
-            };
-            if fire_at > 0 {
-                timer.fire_at(1, fire_at);
+            if let Err(_) = service.receive(timestamp, &grant[1..packet_length - 1]) {
+                defmt::warn!("service receive failed");
             }
             grant.release(packet_length);
             let _ = cx.spawn.radio_tx();

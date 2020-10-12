@@ -19,7 +19,7 @@ use smart_leds_trait::SmartLedsWrite;
 
 use palette::{Hsl, Hue, Pixel, Srgb};
 
-use nrf52_utils::timer::Timer;
+use psila_nrf52::timer::Timer;
 
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
@@ -42,7 +42,7 @@ const APP: () = {
 
         let mut timer0 = cx.device.TIMER0;
         timer0.init();
-        timer0.fire_plus(1, 100_000);
+        timer0.fire_in(1, 100_000);
 
         let neopixel_pin = port0.p0_16.into_push_pull_output(gpio::Level::Low);
 
@@ -75,7 +75,7 @@ const APP: () = {
         if timer.is_compare_event(1) {
             neopixel.write(gamma(pixels.iter().cloned())).ok();
             timer.ack_compare_event(1);
-            timer.fire_plus(1, 100_000);
+            timer.fire_in(1, 100_000);
         }
 
         *cx.resources.colour = cx.resources.colour.shift_hue(1.0);

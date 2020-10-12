@@ -3,7 +3,6 @@ members = [
     "adafruit-feather-nrf52840-express",
     "nrf52-aes-128",
     "nrf52-cryptocell",
-    "nrf52-utils",
     "nrf52840-dk",
     "nrf52840-mdk"
     ]
