@@ -12,12 +12,15 @@ use nrf52840_pac as pac;
 use bbqueue::{self, BBBuffer, ConstBBBuffer};
 
 use nrf52_cryptocell::CryptoCellBackend;
-use psila_nrf52::{radio::{Radio, MAX_PACKET_LENGHT}, timer::Timer};
 use psila_data::{
     cluster_library::{AttributeDataType, ClusterLibraryStatus},
     device_profile::SimpleDescriptor,
     security::DEFAULT_LINK_KEY,
     ExtendedAddress, Key,
+};
+use psila_nrf52::{
+    radio::{Radio, MAX_PACKET_LENGHT},
+    timer::Timer,
 };
 use psila_service::{self, ClusterLibraryHandler, PsilaService};
 

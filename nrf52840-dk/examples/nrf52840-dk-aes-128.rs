@@ -14,8 +14,8 @@ use nrf52_aes_128::{
     CryptoCellAes128CbcEncrypt, CryptoCellAes128Decrypt, CryptoCellAes128Encrypt, Ecb, EcbData,
     NrfAes128Encrypt, RustAes128Decrypt, RustAes128Encrypt,
 };
-use psila_nrf52::timer::Timer;
 use psila_crypto::{self, BLOCK_SIZE};
+use psila_nrf52::timer::Timer;
 
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
