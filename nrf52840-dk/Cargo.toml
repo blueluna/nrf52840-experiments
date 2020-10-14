@@ -35,7 +35,6 @@ ieee802154 = "0.3"
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
 psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
-nrf52-aes-128 = { path = "../nrf52-aes-128" }
 embedded-hal = { version = "0.2.3", features = ["unproven"] }
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }

@@ -2,68 +2,28 @@
 
 Work in progress 802.15.4 radio for nRF52840-DK.
 
-## Debug
+## Running
 
-[JLinkGDBServer] from Segger is used to debug, see the `jlinkgdb` shell script
-on how JLinkGDBServer is invoked.
-
-Start the GDB server with `jlinkgdb`.
+These examples use `probe-run` to flash an run them. For example,
 
 ```
-$ ./jlinkgdb
+cargo run --example nrf52840-dk-psila
 ```
 
-Then run the program
+## Examples
 
-```
-$ cargo run --example receive
-```
+### Blinky
 
-cargo will use the run definition found in `.cargo/config` to launch `gdb` with
-the `jlink.gdb` script file.
+Simple led and button example
 
-## Receive only
+### Energy Detect
 
-Use the `receive` example to do recive only. The recieve only code is
-fairly stable.
+Exploring energy detect feature of the nRF52 radio.
 
-## Send beacon
+### Listener
 
-The `beacon_rtfm` example will try to send a beacon request every thirty
-seconds.
+Listen for 802.15.4 messages and sending them to the host using serial.
 
-```
-$ cargo run --example beacon
-```
+### Psila
 
-## PAN Association
-
-With this example there is an state machine which tries to send and receive
-packets with the goal to associate with a PAN.
-
-```text
-   Device                      Coordinator
-     |                             |
-     | ----- beacon request -----> |
-     |                             |
-     | <--------- beacon --------- |
-     |                             |
-     | -- association request ---> |
-     |                             |
-     | <------ acknowledge ------- |
-     |                             |
-     | ------ data request ------> |
-     |                             |
-     | <-- association response -- |
-     |                             |
-     | ------- acknowledge ------> |
-     |                             |
-```
-
-Note that the coordinator must permit new associations to the PAN.
-
-```
-$ cargo run --example associate
-```
-
-[JLinkGDBServer]:https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/
+A Zigbee on/off light

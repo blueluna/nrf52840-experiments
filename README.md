@@ -2,8 +2,9 @@
 
 This is some experiments with using the nRF52840 radio in 802.14.5 mode. The
 examples in this repository assumes that one of the nRF52840-DK or
-nRF52840-MDK boards is used.
-The host program has only been tested with Fedora 29 Linux.
+nRF52840-MDK, ... boards is used.
+
+The host program has been tested with Fedora and Ubuntu Linux.
 
 The code is split into following parts.
 
@@ -14,14 +15,13 @@ The code is split into following parts.
 `nrf52-cryptocell` is a crate for using the nRF52480 crypto cell for AES
 crypto.
 
-### nRF52840 utils
+### Target examples
 
-`nrf52-utils` is a small logging crate.
+#### Adafruit Feather nRF52840 Express
 
-### Target
+#### Nordic nRF52840-DK
 
-The target examples are found in the `nrf52840-dk` and `nrf52840-mdk`
-directories.
+#### Makerdiary nRF52840-MDK
 
 ### Host
 

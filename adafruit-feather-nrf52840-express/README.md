@@ -2,24 +2,20 @@
 
 Work in progress 802.15.4 radio for Adafruit feather nRF52840 express.
 
-## Debug
+## Running
 
-[JLinkGDBServer] from Segger is used to debug, see the `jlinkgdb` shell script
-on how JLinkGDBServer is invoked.
-
-Start the GDB server with `jlinkgdb`.
+These examples use `probe-run` to flash an run them. For example,
 
 ```
-$ ./jlinkgdb
+cargo run --example feather-express-psila
 ```
 
-Then run the program
+## Examples
 
-```
-$ cargo run --example feather-express-psila
-```
+### Listener
 
-cargo will use the run definition found in `.cargo/config` to launch `gdb` with
-the `jlink.gdb` script file.
+Listen for 802.15.4 messages and sending them to the host using serial.
 
-[JLinkGDBServer]:https://www.segger.com/products/debug-probes/j-link/tools/j-link-gdb-server/about-j-link-gdb-server/
+### Psila
+
+A Zigbee colour light

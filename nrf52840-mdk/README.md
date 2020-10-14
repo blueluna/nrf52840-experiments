@@ -1,59 +1,17 @@
 # Experiments with nRF52840-MDK
 
-## Debug
+Work in progress 802.15.4 radio for Makerdiary nRF52840-MDK.
 
-I had to build openocd from source to get the DAPLink to function.
+## Running
 
-```
-$ openocd -f openocd.conf 
-```
-
-Then run the program
+These examples use cargo embed to run them. For example,
 
 ```
-$ cargo run --example beacon
+cargo embed --target thumbv7em-none-eabihf --example nrf52840-mdk-listener
 ```
-
-cargo will use the run definition found in `.cargo/config` to launch `gdb` with
-the `openocd.gdb` script file.
 
 ## Examples
 
-### Beacon
+### Listener
 
-The `beacon` example will try to send a beacon request every thirty
-seconds.
-
-```
-$ cargo run --example beacon_rtfm
-```
-
-### Associate
-
-With this example there is an state machine which tries to send and receive
-packets with the goal to associate with a PAN.
-
-```text
-   Device                      Coordinator
-     |                             |
-     | ----- beacon request -----> |
-     |                             |
-     | <--------- beacon --------- |
-     |                             |
-     | -- association request ---> |
-     |                             |
-     | <------ acknowledge ------- |
-     |                             |
-     | ------ data request ------> |
-     |                             |
-     | <-- association response -- |
-     |                             |
-     | ------- acknowledge ------> |
-     |                             |
-```
-
-Note that the coordinator must permit new associations to the PAN.
-
-```
-$ cargo run --example associate
-```
+Listen for 802.15.4 messages and sending them to the host using serial.
