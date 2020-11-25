@@ -9,13 +9,13 @@ use rtic::app;
 
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
-use crate::hal::target as pac;
+use crate::hal::pac;
 use nrf52840_hal as hal;
 
 use hal::{clocks, gpio, timer::Instance, uarte};
 use pac::{RTC0, TIMER0, UARTE0};
 
-#[app(device = crate::hal::target, peripherals = true)]
+#[app(device = crate::hal::pac, peripherals = true)]
 const APP: () = {
     struct Resources {
         button_1: gpio::Pin<gpio::Input<gpio::PullUp>>,
@@ -28,7 +28,7 @@ const APP: () = {
         led_4: gpio::Pin<gpio::Output<gpio::PushPull>>,
         #[init(false)]
         on_off: bool,
-        rtc_0: hal::rtc::Rtc<RTC0, hal::rtc::Started>,
+        rtc_0: hal::rtc::Rtc<RTC0>,
         timer_0: TIMER0,
         uart: uarte::Uarte<UARTE0>,
     }
@@ -45,11 +45,13 @@ const APP: () = {
         cx.device.TIMER0.enable_interrupt();
         cx.device.TIMER0.timer_start(1_000_000u32);
 
-        let mut rtc_0 = hal::rtc::Rtc::new(cx.device.RTC0);
-        let _ = rtc_0.set_prescaler(4095);
+        let mut rtc_0 = match hal::rtc::Rtc::new(cx.device.RTC0, 4095) {
+            Ok(r) => r,
+            Err(_) => unreachable!(),
+        };
         rtc_0.enable_event(hal::rtc::RtcInterrupt::Tick);
         rtc_0.enable_interrupt(hal::rtc::RtcInterrupt::Tick, None);
-        let rtc_0 = rtc_0.enable_counter();
+        rtc_0.enable_counter();
 
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         let button_1 = port0.p0_11.into_pullup_input().degrade();
@@ -124,7 +126,7 @@ const APP: () = {
         let _ = cx
             .resources
             .rtc_0
-            .get_event_triggered(hal::rtc::RtcInterrupt::Tick, true);
+            .is_event_triggered(hal::rtc::RtcInterrupt::Tick);
         let button_4 = cx.resources.button_4;
         let led_4 = cx.resources.led_4;
         let uart = cx.resources.uart;

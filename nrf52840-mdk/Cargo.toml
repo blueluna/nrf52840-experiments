@@ -6,7 +6,7 @@ edition = "2018"
 
 [dev-dependencies]
 nrf52840-pac = "0.9"
-nrf52840-hal = "0.10"
+nrf52840-hal = "0.12"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
 rtt-target = { version = "0.2", features = ["cortex-m"] }

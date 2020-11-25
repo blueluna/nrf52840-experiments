@@ -19,7 +19,7 @@ panic-probe = "0.1"
 [dev-dependencies]
 log = "0.4.8"
 nrf52840-pac = "0.9"
-nrf52840-hal = "0.10"
+nrf52840-hal = "0.12"
 cortex-m-rtic = "0.5"
 bbqueue = "0.4"
 ieee802154 = "0.3"
