@@ -9,21 +9,12 @@ license = "MIT"
 readme = "README.md"
 edition = "2018"
 
-[dependencies.defmt]
-git = "https://github.com/knurling-rs/defmt"
-branch = "main"
-
-[dependencies.defmt-rtt]
-git = "https://github.com/knurling-rs/defmt"
-branch = "main"
-
-[dependencies.panic-probe]
-git = "https://github.com/knurling-rs/probe-run"
-branch = "main"
-
 [dependencies]
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
+defmt = "0.1"
+defmt-rtt = "0.1"
+panic-probe = "0.1"
 
 [dev-dependencies]
 log = "0.4.8"

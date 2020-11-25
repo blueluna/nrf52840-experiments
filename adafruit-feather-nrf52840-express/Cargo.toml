@@ -12,18 +12,9 @@ edition = "2018"
 [dependencies]
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
-
-[dependencies.defmt]
-git = "https://github.com/knurling-rs/defmt"
-branch = "main"
-
-[dependencies.defmt-rtt]
-git = "https://github.com/knurling-rs/defmt"
-branch = "main"
-
-[dependencies.panic-probe]
-git = "https://github.com/knurling-rs/probe-run"
-branch = "main"
+defmt = "0.1"
+defmt-rtt = "0.1"
+panic-probe = "0.1"
 
 [dev-dependencies]
 nrf52840-pac = "0.9"
