@@ -9,5 +9,5 @@ fn main() {
             .join("nrf_cc310/lib/cortex-m4/hard-float/no-interrupts")
             .to_string_lossy()
     );
-    println!("cargo:rustc-link-lib=static=nrf_cc310_0.9.12");
+    println!("cargo:rustc-link-lib=static=nrf_cc310_0.9.13");
 }
