@@ -194,7 +194,7 @@ impl ClusterLibraryHandler for ClusterHandler {
             }
             (_, _, _) => {
                 defmt::info!(
-                    "Read attribute: {:u16} {:u16} {:u16}",
+                    "Read attribute: {=u16} {=u16} {=u16}",
                     profile,
                     cluster,
                     attribute
@@ -253,7 +253,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 if arguments.len() >= 3 {
                     let level = arguments[0];
                     let transition_time = LittleEndian::read_u16(&arguments[1..=2]);
-                    defmt::info!("Move to level: {:u8} {:u16}", level, transition_time);
+                    defmt::info!("Move to level: {=u8} {=u16}", level, transition_time);
                     self.set_level(level);
                 } else {
                     defmt::warn!("Move to level ?");
@@ -264,7 +264,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 // move
                 let mode = arguments[0];
                 let rate = arguments[1];
-                defmt::info!("Move: {:u8} {:u8}", mode, rate);
+                defmt::info!("Move: {=u8} {=u8}", mode, rate);
                 Ok(())
             }
             (0x0104, 0x0008, 0x02) => {
@@ -272,7 +272,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let mode = arguments[0];
                 let step = arguments[1];
                 let transition_time = LittleEndian::read_u16(&arguments[2..=3]);
-                defmt::info!("Step: {:u8} {:u8} {:u16}", mode, step, transition_time);
+                defmt::info!("Step: {=u8} {=u8} {=u16}", mode, step, transition_time);
                 Ok(())
             }
             (0x0104, 0x0008, 0x03) | (0x0104, 0x0008, 0x07) => {
@@ -292,7 +292,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 // move, on / off
                 let mode = arguments[0];
                 let rate = arguments[1];
-                defmt::info!("Move (on/off): {:u8} {:u8}", mode, rate);
+                defmt::info!("Move (on/off): {=u8} {=u8}", mode, rate);
                 Ok(())
             }
             (0x0104, 0x0008, 0x06) => {
@@ -301,7 +301,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let step = arguments[1];
                 let transition_time = LittleEndian::read_u16(&arguments[2..=3]);
                 defmt::info!(
-                    "Step (on/off): {:u8} {:u8} {:u16}",
+                    "Step (on/off): {=u8} {=u8} {=u16}",
                     mode,
                     step,
                     transition_time
@@ -314,7 +314,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let direction = arguments[1];
                 let transition_time = LittleEndian::read_u16(&arguments[2..=3]);
                 defmt::info!(
-                    "Move to hue: {:u8} {:u8} {:u16}",
+                    "Move to hue: {=u8} {=u8} {=u16}",
                     hue,
                     direction,
                     transition_time
@@ -325,7 +325,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 // move hue
                 let mode = arguments[0];
                 let rate = arguments[1];
-                defmt::info!("Move hue: {:u8} {:u8}", mode, rate);
+                defmt::info!("Move hue: {=u8} {=u8}", mode, rate);
                 Ok(())
             }
             (0x0104, 0x0300, 0x02) => {
@@ -333,7 +333,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let mode = arguments[0];
                 let step = arguments[1];
                 let transition_time = LittleEndian::read_u16(&arguments[2..4]);
-                defmt::info!("Step hue: {:u8} {:u8} {:u16}", mode, step, transition_time);
+                defmt::info!("Step hue: {=u8} {=u8} {=u16}", mode, step, transition_time);
                 Ok(())
             }
             (0x0104, 0x0300, 0x03) => {
@@ -341,7 +341,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let saturation = arguments[0];
                 let transition_time = LittleEndian::read_u16(&arguments[1..3]);
                 defmt::info!(
-                    "Move to saturation: {:u8} {:u16}",
+                    "Move to saturation: {=u8} {=u16}",
                     saturation,
                     transition_time
                 );
@@ -351,7 +351,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 // move saturation
                 let mode = arguments[0];
                 let rate = arguments[1];
-                defmt::info!("Move saturation: {:u8} {:u8}", mode, rate);
+                defmt::info!("Move saturation: {=u8} {=u8}", mode, rate);
                 Ok(())
             }
             (0x0104, 0x0300, 0x05) => {
@@ -360,7 +360,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let step = arguments[1];
                 let transition_time = LittleEndian::read_u16(&arguments[2..4]);
                 defmt::info!(
-                    "Step saturation: {:u8} {:u8} {:u16}",
+                    "Step saturation: {=u8} {=u8} {=u16}",
                     mode,
                     step,
                     transition_time
@@ -373,7 +373,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let saturation = arguments[1];
                 let transition_time = LittleEndian::read_u16(&arguments[2..4]);
                 defmt::info!(
-                    "Move to  hue and saturation: {:u8} {:u8} {:u16}",
+                    "Move to  hue and saturation: {=u8} {=u8} {=u16}",
                     hue,
                     saturation,
                     transition_time
@@ -386,7 +386,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                     let x = LittleEndian::read_u16(&arguments[0..2]);
                     let y = LittleEndian::read_u16(&arguments[2..4]);
                     let transition_time = LittleEndian::read_u16(&arguments[4..6]);
-                    defmt::info!("Move to color: {:u16} {:u16} {:u16}", x, y, transition_time);
+                    defmt::info!("Move to color: {=u16} {=u16} {=u16}", x, y, transition_time);
                     self.set_color(x, y);
                 } else {
                     defmt::warn!("Move to color ?");
@@ -397,7 +397,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 // move color
                 let rate_x = LittleEndian::read_u16(&arguments[0..2]);
                 let rate_y = LittleEndian::read_u16(&arguments[2..4]);
-                defmt::info!("Move color: {:u16} {:u16}", rate_x, rate_y);
+                defmt::info!("Move color: {=u16} {=u16}", rate_x, rate_y);
                 Ok(())
             }
             (0x0104, 0x0300, 0x09) => {
@@ -406,7 +406,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 let step_y = LittleEndian::read_u16(&arguments[2..4]);
                 let transition_time = LittleEndian::read_u16(&arguments[4..6]);
                 defmt::info!(
-                    "Step color: {:u16} {:u16} {:u16}",
+                    "Step color: {=u16} {=u16} {=u16}",
                     step_x,
                     step_y,
                     transition_time
@@ -419,7 +419,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 Ok(())
             }
             (_, _, _) => {
-                defmt::info!("Operation {:u16} {:u16} {:u8}", profile, cluster, command);
+                defmt::info!("Operation {=u16} {=u16} {=u8}", profile, cluster, command);
                 Err(ClusterLibraryStatus::UnsupportedClusterCommand)
             }
         }

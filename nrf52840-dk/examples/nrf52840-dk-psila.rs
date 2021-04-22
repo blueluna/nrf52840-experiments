@@ -84,7 +84,7 @@ impl ClusterLibraryHandler for ClusterHandler {
         value: &mut [u8],
     ) -> Result<(AttributeDataType, usize), ClusterLibraryStatus> {
         defmt::info!(
-            "Read attribute: {:u16} {:u16} {:u16}",
+            "Read attribute: {=u16} {=u16} {=u16}",
             profile,
             cluster,
             attribute

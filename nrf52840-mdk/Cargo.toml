@@ -18,4 +18,4 @@ esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
 psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
-defmt = "0.1"
+defmt = "0.2"
