@@ -7,7 +7,7 @@ use cortex_m::{iprintln, peripheral::ITM};
 
 use rtic::app;
 
-use bbqueue::{self, BBBuffer, ConstBBBuffer};
+use bbqueue::{self, BBBuffer};
 
 use nrf52840_hal::{clocks, gpio, uarte};
 
@@ -16,9 +16,9 @@ use nrf52840_pac as pac;
 use psila_nrf52::radio::{Radio, MAX_PACKET_LENGHT};
 
 // Use a packet buffer that can hold 16 packages
-pub(crate) use bbqueue::consts::U2048 as PacketBufferSize;
+const PACKET_BUFFER_SIZE: usize = 2048;
 
-static PKT_BUFFER: BBBuffer<PacketBufferSize> = BBBuffer(ConstBBBuffer::new());
+static PKT_BUFFER: BBBuffer<PACKET_BUFFER_SIZE> = BBBuffer::new();
 
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {
@@ -26,8 +26,8 @@ const APP: () = {
         radio: Radio,
         itm: ITM,
         uart: uarte::Uarte<pac::UARTE0>,
-        rx_producer: bbqueue::Producer<'static, PacketBufferSize>,
-        rx_consumer: bbqueue::Consumer<'static, PacketBufferSize>,
+        rx_producer: bbqueue::Producer<'static, PACKET_BUFFER_SIZE>,
+        rx_consumer: bbqueue::Consumer<'static, PACKET_BUFFER_SIZE>,
     }
 
     #[init]

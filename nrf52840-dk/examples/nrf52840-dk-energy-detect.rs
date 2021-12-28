@@ -7,10 +7,10 @@ use rtic::app;
 
 use nrf52840_hal::{clocks, gpio, uarte};
 
-use nrf52840_pac as pac;
-use nrf52840_pac::radio::state::STATE_A;
-
-use psila_nrf52::radio::{Radio, MAX_PACKET_LENGHT};
+use psila_nrf52::{
+    pac::{self, radio::state::STATE_A},
+    radio::{Radio, MAX_PACKET_LENGHT},
+};
 
 #[app(device = nrf52840_pac, peripherals = true)]
 const APP: () = {

@@ -9,7 +9,7 @@ use nrf52840_hal::{clocks, gpio};
 
 use nrf52840_pac as pac;
 
-use bbqueue::{self, BBBuffer, ConstBBBuffer};
+use bbqueue::{self, BBBuffer};
 
 use nrf52_cryptocell::CryptoCellBackend;
 use psila_data::{
@@ -24,11 +24,11 @@ use psila_nrf52::{
 };
 use psila_service::{self, ClusterLibraryHandler, PsilaService};
 
-use bbqueue::consts::U1024 as TxBufferSize;
-use bbqueue::consts::U1024 as RxBufferSize;
+const TX_BUFFER_SIZE: usize = 1024;
+const RX_BUFFER_SIZE: usize = 1024;
 
-static RX_BUFFER: BBBuffer<RxBufferSize> = BBBuffer(ConstBBBuffer::new());
-static TX_BUFFER: BBBuffer<TxBufferSize> = BBBuffer(ConstBBBuffer::new());
+static RX_BUFFER: BBBuffer<RX_BUFFER_SIZE> = BBBuffer::new();
+static TX_BUFFER: BBBuffer<TX_BUFFER_SIZE> = BBBuffer::new();
 
 use nrf_smartled::pwm::Pwm;
 use smart_leds::{gamma, RGB8};
@@ -431,10 +431,10 @@ const APP: () = {
     struct Resources {
         timer: pac::TIMER1,
         radio: Radio,
-        service: PsilaService<'static, TxBufferSize, CryptoCellBackend, ClusterHandler>,
-        rx_producer: bbqueue::Producer<'static, RxBufferSize>,
-        rx_consumer: bbqueue::Consumer<'static, RxBufferSize>,
-        tx_consumer: bbqueue::Consumer<'static, TxBufferSize>,
+        service: PsilaService<'static, CryptoCellBackend, ClusterHandler, TX_BUFFER_SIZE>,
+        rx_producer: bbqueue::Producer<'static, RX_BUFFER_SIZE>,
+        rx_consumer: bbqueue::Consumer<'static, RX_BUFFER_SIZE>,
+        tx_consumer: bbqueue::Consumer<'static, TX_BUFFER_SIZE>,
     }
 
     #[init]

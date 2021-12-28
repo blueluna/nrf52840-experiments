@@ -5,17 +5,17 @@ authors = ["Erik Svensson <erik.public@gmail.com>"]
 edition = "2018"
 
 [dev-dependencies]
-nrf52840-pac = "0.9"
-nrf52840-hal = "0.12"
+bbqueue = "0.5"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
-rtt-target = { version = "0.2", features = ["cortex-m"] }
-panic-rtt-target = { version = "0.1", features = ["cortex-m"] }
 cortex-m-rtic = "0.5"
-bbqueue = "0.4"
-ieee802154 = "0.3"
+defmt = "0.3"
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
-psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
+ieee802154 = "0.3"
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
+nrf52840-pac = "0.9"
+nrf52840-hal = "0.13"
+panic-rtt-target = { version = "0.1", features = ["cortex-m"] }
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
-defmt = "0.2"
+psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
+rtt-target = { version = "0.3", features = ["cortex-m"] }
