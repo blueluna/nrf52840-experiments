@@ -4,10 +4,10 @@ Work in progress 802.15.4 radio for Adafruit feather nRF52840 express.
 
 ## Running
 
-These examples use `probe-run` to flash an run them. For example,
+These examples use `probe-run` to flash and run them. For example,
 
 ```
-cargo run --example feather-express-psila
+DEFMT_LOG=info cargo run --example feather-express-psila
 ```
 
 ## Examples

@@ -7,7 +7,7 @@ Work in progress 802.15.4 radio for nRF52840-DK.
 These examples use `probe-run` to flash an run them. For example,
 
 ```
-cargo run --example nrf52840-dk-psila
+DEFMT_LOG=info cargo run --example nrf52840-dk-psila
 ```
 
 ## Examples

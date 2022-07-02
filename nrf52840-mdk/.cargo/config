@@ -1,2 +1,2 @@
 [target.thumbv7em-none-eabihf]
-runner = "gdb -q -x openocd.gdb"
+runner = "probe-run --probe 0d28:0204 --chip nRF52840_xxAA"

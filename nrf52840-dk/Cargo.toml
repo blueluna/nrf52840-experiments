@@ -31,18 +31,3 @@ embedded-hal = { version = "0.2.3", features = ["unproven"] }
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
 psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
 psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt-default"] }
-
-[features]
-# set logging levels here
-default = [
-  "defmt-default",
-  # "dependency-a/defmt-trace",
-]
-
-# do NOT modify these features
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []

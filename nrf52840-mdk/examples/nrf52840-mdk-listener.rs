@@ -1,9 +1,8 @@
 #![no_main]
 #![no_std]
 
-use panic_rtt_target as _;
-
-use rtt_target::{rprintln, rtt_init_print};
+use defmt_rtt as _;
+use panic_probe as _;
 
 use rtic::app;
 
@@ -31,8 +30,6 @@ const APP: () = {
 
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
-        rtt_init_print!();
-
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
@@ -61,7 +58,7 @@ const APP: () = {
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
-        rprintln!("Initialise late resources");
+        defmt::info!("Initialise late resources");
 
         init::LateResources {
             radio,
