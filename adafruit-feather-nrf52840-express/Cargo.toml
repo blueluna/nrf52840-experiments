@@ -30,7 +30,7 @@ psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = 
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
 psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
-psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt-default"] }
+psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
 
 smart-leds-trait = "0.2.0"
 smart-leds = "0.3.0"
