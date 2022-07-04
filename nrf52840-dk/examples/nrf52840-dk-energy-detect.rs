@@ -63,7 +63,7 @@ mod app {
                 channel: 11,
             },
             init::Monotonics(),
-            )
+        )
     }
 
     #[task(binds = RADIO, local = [channel, radio, uart],)]

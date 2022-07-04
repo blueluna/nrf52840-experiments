@@ -5,7 +5,7 @@ use nrf52840_dk as _;
 
 use rtic::app;
 
-use nrf52840_hal::{gpio};
+use nrf52840_hal::gpio;
 
 use nrf52840_pac as pac;
 
