@@ -5,30 +5,14 @@ use adafruit_feather_nrf52840_express as _;
 
 use rtic::app;
 
-use nrf52840_hal::{clocks, gpio};
-
+use nrf52840_hal::gpio;
 use nrf52840_pac as pac;
 
-use bbqueue::{self, BBBuffer};
-
-use nrf52_cryptocell::CryptoCellBackend;
 use psila_data::{
     cluster_library::{AttributeDataType, ClusterLibraryStatus},
     device_profile::SimpleDescriptor,
-    security::DEFAULT_LINK_KEY,
-    ExtendedAddress, Key,
 };
-use psila_nrf52::{
-    radio::{Radio, MAX_PACKET_LENGHT},
-    timer::Timer,
-};
-use psila_service::{self, ClusterLibraryHandler, PsilaService};
-
-const TX_BUFFER_SIZE: usize = 1024;
-const RX_BUFFER_SIZE: usize = 1024;
-
-static RX_BUFFER: BBBuffer<RX_BUFFER_SIZE> = BBBuffer::new();
-static TX_BUFFER: BBBuffer<TX_BUFFER_SIZE> = BBBuffer::new();
+use psila_service::ClusterLibraryHandler;
 
 use nrf_smartled::pwm::Pwm;
 use smart_leds::{gamma, RGB8};
@@ -37,8 +21,6 @@ use smart_leds_trait::SmartLedsWrite;
 use palette::{Pixel, Srgb, Yxy};
 
 use byteorder::{ByteOrder, LittleEndian};
-
-const TIMER_SECOND: u32 = 1_000_000;
 
 const MANUFACTURER_NAME: &'static str = "ERIK of Sweden";
 const MODEL_IDENTIFIER: &'static str = "Lampan";
@@ -426,19 +408,46 @@ impl ClusterLibraryHandler for ClusterHandler {
     }
 }
 
-#[app(device = nrf52840_pac, peripherals = true)]
-const APP: () = {
-    struct Resources {
-        timer: pac::TIMER1,
-        radio: Radio,
-        service: PsilaService<'static, CryptoCellBackend, ClusterHandler, TX_BUFFER_SIZE>,
+#[app(device = nrf52840_pac, peripherals = true, dispatchers = [QDEC])]
+mod app {
+    use super::{pac, ClusterHandler};
+
+    use bbqueue::{self, BBBuffer};
+
+    use nrf52840_hal::{clocks, gpio};
+
+    use nrf52_cryptocell::CryptoCellBackend;
+    use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
+    use psila_nrf52::{
+        radio::{Radio, MAX_PACKET_LENGHT},
+        timer::Timer,
+    };
+    use psila_service::{self, PsilaService};
+
+    const TIMER_SECOND: u32 = 1_000_000;
+
+    const TX_BUFFER_SIZE: usize = 1024;
+    const RX_BUFFER_SIZE: usize = 1024;
+
+    static RX_BUFFER: BBBuffer<RX_BUFFER_SIZE> = BBBuffer::new();
+    static TX_BUFFER: BBBuffer<TX_BUFFER_SIZE> = BBBuffer::new();
+
+    #[local]
+    struct LocalResources {
         rx_producer: bbqueue::Producer<'static, RX_BUFFER_SIZE>,
         rx_consumer: bbqueue::Consumer<'static, RX_BUFFER_SIZE>,
         tx_consumer: bbqueue::Consumer<'static, TX_BUFFER_SIZE>,
     }
 
+    #[shared]
+    struct SharedResources {
+        timer: pac::TIMER1,
+        radio: Radio,
+        service: PsilaService<'static, CryptoCellBackend, ClusterHandler, TX_BUFFER_SIZE>,
+    }
+
     #[init]
-    fn init(cx: init::Context) -> init::LateResources {
+    fn init(cx: init::Context) -> (SharedResources, LocalResources, init::Monotonics) {
         let mut timer0 = cx.device.TIMER0;
         timer0.init();
 
@@ -485,110 +494,109 @@ const APP: () = {
         let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
         let default_link_key = Key::from(DEFAULT_LINK_KEY);
 
-        init::LateResources {
-            timer: timer1,
-            radio,
-            service: PsilaService::new(
-                cryptocell,
-                tx_producer,
-                extended_address,
-                default_link_key,
-                handler,
-            ),
-            rx_producer,
-            rx_consumer,
-            tx_consumer,
-        }
+        (
+            SharedResources {
+                timer: timer1,
+                radio,
+                service: PsilaService::new(
+                    cryptocell,
+                    tx_producer,
+                    extended_address,
+                    default_link_key,
+                    handler,
+                ),
+            },
+            LocalResources {
+                rx_producer,
+                rx_consumer,
+                tx_consumer,
+            },
+            init::Monotonics(),
+        )
     }
 
-    #[task(binds = TIMER1, resources = [service, timer], spawn = [radio_tx])]
+    #[task(binds = TIMER1, shared = [service, timer])]
     fn timer(cx: timer::Context) {
-        let timer = cx.resources.timer;
-        let service = cx.resources.service;
-
-        if timer.is_compare_event(1) {
-            timer.ack_compare_event(1);
-            let _ = service.update(timer.now());
-            timer.fire_in(1, TIMER_SECOND);
-        }
-        let _ = cx.spawn.radio_tx();
+        (cx.shared.timer, cx.shared.service).lock(|timer, service| {
+            if timer.is_compare_event(1) {
+                timer.ack_compare_event(1);
+                let _ = service.update(timer.now());
+                timer.fire_in(1, TIMER_SECOND);
+            }
+            let _ = radio_tx::spawn();
+        });
     }
 
-    #[task(binds = RADIO, resources = [radio, service, rx_producer], spawn = [radio_tx])]
+    #[task(binds = RADIO, shared = [radio, service], local = [rx_producer])]
     fn radio(cx: radio::Context) {
-        let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
-        let radio = cx.resources.radio;
-        let service = cx.resources.service;
-        let queue = cx.resources.rx_producer;
-
-        match radio.receive(&mut packet) {
-            Ok(packet_len) => {
-                if packet_len > 0 {
-                    match service.handle_acknowledge(&packet[1..packet_len - 1]) {
-                        Ok(to_me) => {
-                            if to_me {
-                                if let Ok(mut grant) = queue.grant_exact(packet_len) {
-                                    grant.copy_from_slice(&packet[..packet_len]);
-                                    grant.commit(packet_len);
+        let queue = cx.local.rx_producer;
+        (cx.shared.radio, cx.shared.service).lock(|radio, service| {
+            let mut packet = [0u8; MAX_PACKET_LENGHT as usize];
+            match radio.receive(&mut packet) {
+                Ok(packet_len) => {
+                    if packet_len > 0 {
+                        match service.handle_acknowledge(&packet[1..packet_len - 1]) {
+                            Ok(to_me) => {
+                                if to_me {
+                                    if let Ok(mut grant) = queue.grant_exact(packet_len) {
+                                        grant.copy_from_slice(&packet[..packet_len]);
+                                        grant.commit(packet_len);
+                                    }
                                 }
                             }
+                            Err(e) => match e {
+                                psila_service::Error::MalformedPacket => {
+                                    defmt::warn!(
+                                        "service handle acknowledge failed, malformed package"
+                                    );
+                                }
+                                psila_service::Error::NotEnoughSpace => {
+                                    defmt::warn!("service handle acknowledge failed, queue full");
+                                }
+                                _ => {
+                                    defmt::warn!("service handle acknowledge failed");
+                                }
+                            },
                         }
-                        Err(e) => match e {
-                            psila_service::Error::MalformedPacket => {
-                                defmt::warn!(
-                                    "service handle acknowledge failed, malformed package"
-                                );
-                            }
-                            psila_service::Error::NotEnoughSpace => {
-                                defmt::warn!("service handle acknowledge failed, queue full");
-                            }
-                            _ => {
-                                defmt::warn!("service handle acknowledge failed");
-                            }
-                        },
                     }
                 }
+                Err(psila_nrf52::radio::Error::CcaBusy) => {
+                    defmt::warn!("CCA Busy");
+                }
             }
-            Err(psila_nrf52::radio::Error::CcaBusy) => {
-                defmt::warn!("CCA Busy");
-            }
-        }
-        let _ = cx.spawn.radio_tx();
+            let _ = radio_tx::spawn();
+        });
     }
 
-    #[task(resources = [rx_consumer, service, timer], spawn = [radio_tx])]
-    fn radio_rx(cx: radio_rx::Context) {
-        let queue = cx.resources.rx_consumer;
-        let service = cx.resources.service;
-
-        if let Ok(grant) = queue.read() {
-            let timestamp = cx.resources.timer.now();
-            let packet_length = grant[0] as usize;
-            if let Err(_) = service.receive(timestamp, &grant[1..packet_length - 1]) {
-                defmt::warn!("service receive failed");
-            }
-            grant.release(packet_length);
-            let _ = cx.spawn.radio_tx();
-        }
-    }
-
-    #[task(resources = [radio, tx_consumer], spawn = [radio_rx])]
-    fn radio_tx(cx: radio_tx::Context) {
-        let queue = cx.resources.tx_consumer;
-        let radio = cx.resources.radio;
-
-        if !radio.is_tx_busy() {
+    #[task(shared = [service, timer], local = [rx_consumer])]
+    fn radio_rx(mut cx: radio_rx::Context) {
+        let queue = cx.local.rx_consumer;
+        let timestamp = cx.shared.timer.lock(|timer| timer.now());
+        cx.shared.service.lock(|service| {
             if let Ok(grant) = queue.read() {
                 let packet_length = grant[0] as usize;
-                let data = &grant[1..=packet_length];
-                let _ = radio.queue_transmission(data);
-                grant.release(packet_length + 1);
+                if let Err(_) = service.receive(timestamp, &grant[1..packet_length - 1]) {
+                    defmt::warn!("service receive failed");
+                }
+                grant.release(packet_length);
+                let _ = radio_tx::spawn();
             }
-            let _ = cx.spawn.radio_rx();
-        }
+        });
     }
 
-    extern "C" {
-        fn QDEC();
+    #[task(shared = [radio], local = [tx_consumer])]
+    fn radio_tx(mut cx: radio_tx::Context) {
+        let queue = cx.local.tx_consumer;
+        cx.shared.radio.lock(|radio| {
+            if !radio.is_tx_busy() {
+                if let Ok(grant) = queue.read() {
+                    let packet_length = grant[0] as usize;
+                    let data = &grant[1..=packet_length];
+                    let _ = radio.queue_transmission(data);
+                    grant.release(packet_length + 1);
+                }
+                let _ = radio_rx::spawn();
+            }
+        });
     }
-};
+}

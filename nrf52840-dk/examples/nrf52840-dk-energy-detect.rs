@@ -2,27 +2,29 @@
 #![no_std]
 
 use nrf52840_dk as _;
-
 use rtic::app;
 
-use nrf52840_hal::{clocks, gpio, uarte};
-
-use psila_nrf52::{
-    pac::{self, radio::state::STATE_A},
-    radio::{Radio, MAX_PACKET_LENGHT},
-};
-
 #[app(device = nrf52840_pac, peripherals = true)]
-const APP: () = {
-    struct Resources {
+mod app {
+    use nrf52840_hal::{clocks, gpio, uarte};
+
+    use psila_nrf52::{
+        pac::{self, radio::state::STATE_A},
+        radio::{Radio, MAX_PACKET_LENGHT},
+    };
+
+    #[shared]
+    struct SharedResources {}
+
+    #[local]
+    struct LocalResources {
         radio: Radio,
         uart: uarte::Uarte<pac::UARTE0>,
-        #[init(11)]
         channel: u8,
     }
 
     #[init]
-    fn init(cx: init::Context) -> init::LateResources {
+    fn init(cx: init::Context) -> (SharedResources, LocalResources, init::Monotonics) {
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
@@ -53,16 +55,21 @@ const APP: () = {
         radio.set_channel(15);
         radio.start_energy_detect(65536);
 
-        init::LateResources {
-            radio,
-            uart: uarte0,
-        }
+        (
+            SharedResources {},
+            LocalResources {
+                radio,
+                uart: uarte0,
+                channel: 11,
+            },
+            init::Monotonics(),
+            )
     }
 
-    #[task(binds = RADIO, resources = [channel, radio, uart],)]
+    #[task(binds = RADIO, local = [channel, radio, uart],)]
     fn radio(cx: radio::Context) {
-        let uarte = cx.resources.uart;
-        let radio = cx.resources.radio;
+        let uarte = cx.local.uart;
+        let radio = cx.local.radio;
         let mut host_packet = [0u8; (MAX_PACKET_LENGHT as usize) * 2];
 
         let energy_level = radio.report_energy_detect();
@@ -82,10 +89,10 @@ const APP: () = {
                     defmt::info!("Failed to encode packet");
                 }
             }
-            let channel = cx.resources.channel.wrapping_add(1);
+            let channel = cx.local.channel.wrapping_add(1);
             let channel = if channel > 26 { 11 } else { channel };
             radio.set_channel(channel);
-            *cx.resources.channel = channel;
+            *cx.local.channel = channel;
             radio.start_energy_detect(65536);
         } else {
             match radio.state() {
@@ -119,4 +126,4 @@ const APP: () = {
             }
         }
     }
-};
+}

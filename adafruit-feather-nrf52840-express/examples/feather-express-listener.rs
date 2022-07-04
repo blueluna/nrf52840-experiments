@@ -1,37 +1,38 @@
 #![no_main]
 #![no_std]
 
-use panic_itm as _;
-
-use cortex_m::{iprintln, peripheral::ITM};
-
 use rtic::app;
 
-use bbqueue::{self, BBBuffer};
-
-use nrf52840_hal::{clocks, gpio, uarte};
-
-use nrf52840_pac as pac;
-
-use psila_nrf52::radio::{Radio, MAX_PACKET_LENGHT};
-
-// Use a packet buffer that can hold 16 packages
-const PACKET_BUFFER_SIZE: usize = 2048;
-
-static PKT_BUFFER: BBBuffer<PACKET_BUFFER_SIZE> = BBBuffer::new();
+use adafruit_feather_nrf52840_express as _;
 
 #[app(device = nrf52840_pac, peripherals = true)]
-const APP: () = {
-    struct Resources {
+mod app {
+    use bbqueue::{self, BBBuffer};
+
+    use nrf52840_hal::{clocks, gpio, uarte};
+
+    use nrf52840_pac as pac;
+
+    use psila_nrf52::radio::{Radio, MAX_PACKET_LENGHT};
+
+    // Use a packet buffer that can hold 16 packages
+    const PACKET_BUFFER_SIZE: usize = 2048;
+
+    static PKT_BUFFER: BBBuffer<PACKET_BUFFER_SIZE> = BBBuffer::new();
+
+    #[local]
+    struct LocalResources {
         radio: Radio,
-        itm: ITM,
         uart: uarte::Uarte<pac::UARTE0>,
         rx_producer: bbqueue::Producer<'static, PACKET_BUFFER_SIZE>,
         rx_consumer: bbqueue::Consumer<'static, PACKET_BUFFER_SIZE>,
     }
 
+    #[shared]
+    struct SharedResources {}
+
     #[init]
-    fn init(cx: init::Context) -> init::LateResources {
+    fn init(cx: init::Context) -> (SharedResources, LocalResources, init::Monotonics) {
         let port0 = gpio::p0::Parts::new(cx.device.P0);
         // Configure to use external clocks, and start them
         let _clocks = clocks::Clocks::new(cx.device.CLOCK)
@@ -66,19 +67,22 @@ const APP: () = {
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
-        init::LateResources {
-            radio,
-            itm: cx.core.ITM,
-            uart: uarte0,
-            rx_producer: q_producer,
-            rx_consumer: q_consumer,
-        }
+        (
+            SharedResources {},
+            LocalResources {
+                radio,
+                uart: uarte0,
+                rx_producer: q_producer,
+                rx_consumer: q_consumer,
+            },
+            init::Monotonics(),
+        )
     }
 
-    #[task(binds = RADIO, resources = [radio, rx_producer],)]
+    #[task(binds = RADIO, local = [radio, rx_producer])]
     fn radio(cx: radio::Context) {
-        let radio = cx.resources.radio;
-        let queue = cx.resources.rx_producer;
+        let radio = cx.local.radio;
+        let queue = cx.local.rx_producer;
 
         match queue.grant_exact(MAX_PACKET_LENGHT) {
             Ok(mut grant) => {
@@ -100,14 +104,13 @@ const APP: () = {
         }
     }
 
-    #[idle(resources = [rx_consumer, uart, itm])]
+    #[idle(local = [rx_consumer, uart])]
     fn idle(cx: idle::Context) -> ! {
         let mut host_packet = [0u8; MAX_PACKET_LENGHT * 2];
-        let queue = cx.resources.rx_consumer;
-        let uarte = cx.resources.uart;
-        let itm_port = &mut cx.resources.itm.stim[0];
+        let queue = cx.local.rx_consumer;
+        let uarte = cx.local.uart;
 
-        iprintln!(itm_port, "~ listening ~");
+        defmt::info!("~ listening ~");
 
         loop {
             if let Ok(grant) = queue.read() {
@@ -121,11 +124,11 @@ const APP: () = {
                         uarte.write(&host_packet[..written]).unwrap();
                     }
                     Err(_) => {
-                        iprintln!(itm_port, "Failed to encode packet");
+                        defmt::info!("Failed to encode packet");
                     }
                 }
                 grant.release(packet_length);
             }
         }
     }
-};
+}
