@@ -19,6 +19,8 @@ crypto.
 
 #### Adafruit Feather nRF52840 Express
 
+[Color Light Demo](doc/adafruit-feather-color-light.md)
+
 #### Nordic nRF52840-DK
 
 #### Makerdiary nRF52840-MDK
