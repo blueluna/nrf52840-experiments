@@ -192,7 +192,12 @@ impl ClusterLibraryHandler for ClusterHandler {
                 PROFILE_HOME_AUTOMATION,
                 DEVICE_COLOR_DIMMABLE_LIGHT,
                 0,
-                &[CLUSTER_BASIC, CLUSTER_ON_OFF, CLUSTER_LEVEL_CONTROL, CLUSTER_COLOR_CONTROL],
+                &[
+                    CLUSTER_BASIC,
+                    CLUSTER_ON_OFF,
+                    CLUSTER_LEVEL_CONTROL,
+                    CLUSTER_COLOR_CONTROL,
+                ],
                 &[],
             )),
             _ => None,
@@ -251,7 +256,11 @@ impl ClusterLibraryHandler for ClusterHandler {
                 value[0] = 0x01; // Current X, Current Y
                 Ok((AttributeDataType::Enumeration8, 1))
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_COLOR_CONTROL, COLOR_CONTROL_ATTR_COLOR_CAPABILITIES) => {
+            (
+                PROFILE_HOME_AUTOMATION,
+                CLUSTER_COLOR_CONTROL,
+                COLOR_CONTROL_ATTR_COLOR_CAPABILITIES,
+            ) => {
                 // color capabilities
                 let capabilities = 0b_0000_0000_0000_1000; // XY
                 LittleEndian::write_u16(&mut value[0..=2], capabilities);
@@ -278,14 +287,22 @@ impl ClusterLibraryHandler for ClusterHandler {
         value: &[u8],
     ) -> Result<(), ClusterLibraryStatus> {
         match (profile, cluster, attribute, data_type) {
-            (PROFILE_HOME_AUTOMATION, CLUSTER_BASIC, BASIC_ATTR_LIBRARY_VERSION, _) | (PROFILE_HOME_AUTOMATION, CLUSTER_BASIC, BASIC_ATTR_POWER_SOURCE, _) => {
+            (PROFILE_HOME_AUTOMATION, CLUSTER_BASIC, BASIC_ATTR_LIBRARY_VERSION, _)
+            | (PROFILE_HOME_AUTOMATION, CLUSTER_BASIC, BASIC_ATTR_POWER_SOURCE, _) => {
                 Err(ClusterLibraryStatus::ReadOnly)
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_ON_OFF, ON_OFF_ATTR_ON_OFF_STATE, AttributeDataType::Boolean) => {
+            (
+                PROFILE_HOME_AUTOMATION,
+                CLUSTER_ON_OFF,
+                ON_OFF_ATTR_ON_OFF_STATE,
+                AttributeDataType::Boolean,
+            ) => {
                 self.set_on_off(value[0] == 0x01);
                 Ok(())
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_ON_OFF, ON_OFF_ATTR_ON_OFF_STATE, _) => Err(ClusterLibraryStatus::InvalidValue),
+            (PROFILE_HOME_AUTOMATION, CLUSTER_ON_OFF, ON_OFF_ATTR_ON_OFF_STATE, _) => {
+                Err(ClusterLibraryStatus::InvalidValue)
+            }
             (_, _, _, _) => Err(ClusterLibraryStatus::UnsupportedAttribute),
         }
     }
@@ -340,12 +357,17 @@ impl ClusterLibraryHandler for ClusterHandler {
                 defmt::info!("Step: {=u8} {=u8} {=u16}", mode, step, transition_time);
                 Ok(())
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_LEVEL_CONTROL, LEVEL_CONTROL_CMD_STOP) | (PROFILE_HOME_AUTOMATION, CLUSTER_LEVEL_CONTROL, LEVEL_CONTROL_CMD_STOP_ON_OFF) => {
+            (PROFILE_HOME_AUTOMATION, CLUSTER_LEVEL_CONTROL, LEVEL_CONTROL_CMD_STOP)
+            | (PROFILE_HOME_AUTOMATION, CLUSTER_LEVEL_CONTROL, LEVEL_CONTROL_CMD_STOP_ON_OFF) => {
                 // stop
                 defmt::info!("Stop");
                 Ok(())
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_LEVEL_CONTROL, LEVEL_CONTROL_CMD_MOVE_TO_LEVEL_ON_OFF) => {
+            (
+                PROFILE_HOME_AUTOMATION,
+                CLUSTER_LEVEL_CONTROL,
+                LEVEL_CONTROL_CMD_MOVE_TO_LEVEL_ON_OFF,
+            ) => {
                 // move to level, on / off
                 let level = arguments[0];
                 let _transition_time = LittleEndian::read_u16(&arguments[1..=2]);
@@ -401,7 +423,11 @@ impl ClusterLibraryHandler for ClusterHandler {
                 defmt::info!("Step hue: {=u8} {=u8} {=u16}", mode, step, transition_time);
                 Ok(())
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_COLOR_CONTROL, COLOR_CONTROL_CMD_MOVE_TO_SATURATION) => {
+            (
+                PROFILE_HOME_AUTOMATION,
+                CLUSTER_COLOR_CONTROL,
+                COLOR_CONTROL_CMD_MOVE_TO_SATURATION,
+            ) => {
                 // move to saturation
                 let saturation = arguments[0];
                 let transition_time = LittleEndian::read_u16(&arguments[1..3]);
@@ -432,7 +458,11 @@ impl ClusterLibraryHandler for ClusterHandler {
                 );
                 Ok(())
             }
-            (PROFILE_HOME_AUTOMATION, CLUSTER_COLOR_CONTROL, COLOR_CONTROL_CMD_MOVE_TO_HUE_AND_SATURATION) => {
+            (
+                PROFILE_HOME_AUTOMATION,
+                CLUSTER_COLOR_CONTROL,
+                COLOR_CONTROL_CMD_MOVE_TO_HUE_AND_SATURATION,
+            ) => {
                 // move to hue and saturation
                 let hue = arguments[0];
                 let saturation = arguments[1];
