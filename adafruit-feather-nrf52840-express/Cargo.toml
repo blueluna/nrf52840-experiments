@@ -22,7 +22,7 @@ nrf52840-hal = "0.15"
 panic-itm = "0.4"
 cortex-m-rtic = "1.1"
 bbqueue = "0.5"
-ieee802154 = "0.3"
+ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4.git" }
 byteorder = { version = "1", default-features = false }
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
 nrf52-cryptocell = { path = "../nrf52-cryptocell" }
@@ -30,7 +30,7 @@ psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = 
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
 psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
-psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt"] }
 
 smart-leds-trait = "0.2.0"
 smart-leds = "0.3.0"
