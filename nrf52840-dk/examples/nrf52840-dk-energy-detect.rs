@@ -99,28 +99,28 @@ mod app {
                 STATE_A::DISABLED => {
                     defmt::info!("DISABLED");
                 }
-                STATE_A::RXRU => {
+                STATE_A::RX_RU => {
                     defmt::info!("RXRU");
                 }
-                STATE_A::RXIDLE => {
+                STATE_A::RX_IDLE => {
                     defmt::info!("RX IDLE");
                 }
                 STATE_A::RX => {
                     defmt::info!("RX");
                 }
-                STATE_A::RXDISABLE => {
+                STATE_A::RX_DISABLE => {
                     defmt::info!("RX DISABLE");
                 }
-                STATE_A::TXRU => {
+                STATE_A::TX_RU => {
                     defmt::info!("TXRU");
                 }
-                STATE_A::TXIDLE => {
+                STATE_A::TX_IDLE => {
                     defmt::info!("TX IDLE");
                 }
                 STATE_A::TX => {
                     defmt::info!("TX");
                 }
-                STATE_A::TXDISABLE => {
+                STATE_A::TX_DISABLE => {
                     defmt::info!("TX DISABLE");
                 }
             }
