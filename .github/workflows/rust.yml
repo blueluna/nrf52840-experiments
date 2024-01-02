@@ -10,6 +10,6 @@ jobs:
     - name: Install target
       run: rustup target add thumbv7em-none-eabihf
     - name: Build
-      run: cargo build --all --exclude nrf52-cryptocell --exclude nrf52-aes-128
+      run: cargo build --all
     - name: Formatting
       run: cargo fmt -- --check

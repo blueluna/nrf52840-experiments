@@ -155,7 +155,7 @@ mod app {
 
     use nrf52840_hal::{clocks, gpio};
 
-    use nrf52_cryptocell::CryptoCellBackend;
+    use psila_crypto_rust_crypto::RustCryptoBackend;
     use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
     use psila_nrf52::{
         radio::{Radio, MAX_PACKET_LENGHT},
@@ -182,7 +182,7 @@ mod app {
     struct SharedResources {
         timer: pac::TIMER1,
         radio: Radio,
-        service: PsilaService<'static, CryptoCellBackend, ClusterHandler, TX_BUFFER_SIZE>,
+        service: PsilaService<'static, RustCryptoBackend, ClusterHandler, TX_BUFFER_SIZE>,
     }
 
     #[init]
@@ -230,7 +230,7 @@ mod app {
         let (rx_producer, rx_consumer) = RX_BUFFER.try_split().unwrap();
         let (tx_producer, tx_consumer) = TX_BUFFER.try_split().unwrap();
 
-        let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
+        let crypto_backend = RustCryptoBackend::default();
         let default_link_key = Key::from(DEFAULT_LINK_KEY);
 
         (
@@ -238,7 +238,7 @@ mod app {
                 timer: timer1,
                 radio,
                 service: PsilaService::new(
-                    cryptocell,
+                    crypto_backend,
                     tx_producer,
                     extended_address,
                     default_link_key,

@@ -238,16 +238,19 @@ impl ClusterLibraryHandler for ClusterHandler {
             }
             (PROFILE_HOME_AUTOMATION, CLUSTER_LEVEL_CONTROL, LEVEL_CONTROL_ATTR_CURRENT_LEVEL) => {
                 // current level
+                defmt::info!("Read level: {=u8}", self.get_level());
                 value[0] = self.get_level();
                 Ok((AttributeDataType::Unsigned8, 1))
             }
             (PROFILE_HOME_AUTOMATION, CLUSTER_COLOR_CONTROL, COLOR_CONTROL_ATTR_CURRENT_X) => {
                 // current x
+                defmt::info!("Read X: {=u16}", self.get_x());
                 LittleEndian::write_u16(&mut value[0..=2], self.get_x());
                 Ok((AttributeDataType::Unsigned16, 2))
             }
             (PROFILE_HOME_AUTOMATION, CLUSTER_COLOR_CONTROL, COLOR_CONTROL_ATTR_CURRENT_Y) => {
                 // current y
+                defmt::info!("Read Y: {=u16}", self.get_y());
                 LittleEndian::write_u16(&mut value[0..=2], self.get_y());
                 Ok((AttributeDataType::Unsigned16, 2))
             }
@@ -268,7 +271,7 @@ impl ClusterLibraryHandler for ClusterHandler {
             }
             (_, _, _) => {
                 defmt::info!(
-                    "Read attribute: {=u16} {=u16} {=u16}",
+                    "Read attribute: {=u16:04x} {=u16:04x} {=u16:04x}",
                     profile,
                     cluster,
                     attribute
@@ -529,7 +532,7 @@ mod app {
 
     use nrf52840_hal::{clocks, gpio};
 
-    use nrf52_cryptocell::CryptoCellBackend;
+    use psila_crypto_rust_crypto::RustCryptoBackend;
     use psila_data::{security::DEFAULT_LINK_KEY, ExtendedAddress, Key};
     use psila_nrf52::{
         radio::{Radio, MAX_PACKET_LENGHT},
@@ -556,7 +559,7 @@ mod app {
     struct SharedResources {
         timer: pac::TIMER1,
         radio: Radio,
-        service: PsilaService<'static, CryptoCellBackend, ClusterHandler, TX_BUFFER_SIZE>,
+        service: PsilaService<'static, RustCryptoBackend, ClusterHandler, TX_BUFFER_SIZE>,
     }
 
     #[init]
@@ -604,7 +607,7 @@ mod app {
         let (rx_producer, rx_consumer) = RX_BUFFER.try_split().unwrap();
         let (tx_producer, tx_consumer) = TX_BUFFER.try_split().unwrap();
 
-        let cryptocell = CryptoCellBackend::new(cx.device.CRYPTOCELL);
+        let crypto_backend = RustCryptoBackend::default();
         let default_link_key = Key::from(DEFAULT_LINK_KEY);
 
         (
@@ -612,7 +615,7 @@ mod app {
                 timer: timer1,
                 radio,
                 service: PsilaService::new(
-                    cryptocell,
+                    crypto_backend,
                     tx_producer,
                     extended_address,
                     default_link_key,

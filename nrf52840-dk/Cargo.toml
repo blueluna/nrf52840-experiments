@@ -24,9 +24,9 @@ bbqueue = "0.5"
 ieee802154 = { git = "https://github.com/blueluna/ieee-802.15.4.git" }
 esercom = { git = "https://github.com/blueluna/esercom.git", branch = "master" }
 psila-nrf52 = { git = "https://github.com/blueluna/psila-nrf52.git", features = ["52840"] }
-nrf52-cryptocell = { path = "../nrf52-cryptocell" }
 embedded-hal = { version = "0.2", features = ["unproven"] }
 
 psila-crypto = { git = "https://github.com/blueluna/psila.git" }
 psila-data = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
-psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core"] }
+psila-service = { git = "https://github.com/blueluna/psila.git", features = ["core", "defmt"] }
+psila-crypto-rust-crypto = { git = "https://github.com/blueluna/psila.git" }
