@@ -9,10 +9,10 @@ use nrf52840_hal::gpio;
 use nrf52840_pac as pac;
 
 use psila_data::{
-    cluster_library::{AttributeDataType, ClusterLibraryStatus},
+    cluster_library::{AttributeDataType, ClusterLibraryStatus, Destination},
     device_profile::SimpleDescriptor,
 };
-use psila_service::ClusterLibraryHandler;
+use psila_service::{ClusterLibraryHandler};
 
 use nrf_smartled::pwm::Pwm;
 use smart_leds::{gamma, RGB8};
@@ -185,7 +185,7 @@ impl ClusterLibraryHandler for ClusterHandler {
     fn active_endpoints(&self) -> &[u8] {
         &[0x01]
     }
-    fn get_simple_desciptor(&self, endpoint: u8) -> Option<SimpleDescriptor> {
+    fn get_simple_descriptor(&self, endpoint: u8) -> Option<SimpleDescriptor> {
         match endpoint {
             0x01 => Some(SimpleDescriptor::new(
                 0x01,
@@ -198,7 +198,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                     CLUSTER_LEVEL_CONTROL,
                     CLUSTER_COLOR_CONTROL,
                 ],
-                &[],
+                &[CLUSTER_ON_OFF],
             )),
             _ => None,
         }
@@ -207,7 +207,7 @@ impl ClusterLibraryHandler for ClusterHandler {
         &self,
         profile: u16,
         cluster: u16,
-        _endpoint: u8,
+        _destination: Destination,
         attribute: u16,
         value: &mut [u8],
     ) -> Result<(AttributeDataType, usize), ClusterLibraryStatus> {
@@ -284,7 +284,7 @@ impl ClusterLibraryHandler for ClusterHandler {
         &mut self,
         profile: u16,
         cluster: u16,
-        _endpoint: u8,
+        _destination: Destination,
         attribute: u16,
         data_type: AttributeDataType,
         value: &[u8],
@@ -313,7 +313,7 @@ impl ClusterLibraryHandler for ClusterHandler {
         &mut self,
         profile: u16,
         cluster: u16,
-        _endpoint: u8,
+        _destination: Destination,
         command: u8,
         arguments: &[u8],
     ) -> Result<(), ClusterLibraryStatus> {
@@ -517,7 +517,7 @@ impl ClusterLibraryHandler for ClusterHandler {
                 Ok(())
             }
             (_, _, _) => {
-                defmt::info!("Operation {=u16} {=u16} {=u8}", profile, cluster, command);
+                defmt::info!("Command {=u16:04x} {=u16:04x} {=u8:04x}", profile, cluster, command);
                 Err(ClusterLibraryStatus::UnsupportedClusterCommand)
             }
         }
@@ -539,6 +539,7 @@ mod app {
         timer::Timer,
     };
     use psila_service::{self, PsilaService};
+    use rtic::Mutex;
 
     const TIMER_SECOND: u32 = 1_000_000;
 
@@ -600,7 +601,7 @@ mod app {
         timer1.fire_in(1, TIMER_SECOND);
 
         let mut radio = Radio::new(cx.device.RADIO);
-        radio.set_channel(15);
+        radio.set_channel(11);
         radio.set_transmission_power(8);
         radio.receive_prepare();
 
@@ -702,13 +703,20 @@ mod app {
 
     #[task(shared = [radio], local = [tx_consumer])]
     fn radio_tx(mut cx: radio_tx::Context) {
+        const NO_CCA_MARKER: u8 = 0x80;
         let queue = cx.local.tx_consumer;
         cx.shared.radio.lock(|radio| {
             if !radio.is_tx_busy() {
                 if let Ok(grant) = queue.read() {
-                    let packet_length = grant[0] as usize;
+                    let no_cca = (grant[0] & NO_CCA_MARKER) == NO_CCA_MARKER;
+                    let packet_length = (grant[0] & 0x7f) as usize;
                     let data = &grant[1..=packet_length];
-                    let _ = radio.queue_transmission(data);
+                    if no_cca {
+                        let _ = radio.queue_transmission_no_cca(data);
+                    }
+                    else {
+                        let _ = radio.queue_transmission(data);
+                    }
                     grant.release(packet_length + 1);
                 }
                 let _ = radio_rx::spawn();

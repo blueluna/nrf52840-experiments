@@ -45,7 +45,7 @@ impl ClusterLibraryHandler for ClusterHandler {
     fn active_endpoints(&self) -> &[u8] {
         &[0x01]
     }
-    fn get_simple_desciptor(&self, endpoint: u8) -> Option<SimpleDescriptor> {
+    fn get_simple_descriptor(&self, endpoint: u8) -> Option<SimpleDescriptor> {
         match endpoint {
             0x01 => Some(SimpleDescriptor::new(
                 0x01,

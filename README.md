@@ -10,11 +10,6 @@ The code is split into following parts.
 
 ## Parts
 
-### nRF52840 crypto cell
-
-`nrf52-cryptocell` is a crate for using the nRF52480 crypto cell for AES
-crypto.
-
 ### Target examples
 
 #### Adafruit Feather nRF52840 Express
