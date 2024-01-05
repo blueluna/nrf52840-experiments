@@ -12,7 +12,7 @@ use psila_data::{
     cluster_library::{AttributeDataType, ClusterLibraryStatus, Destination},
     device_profile::SimpleDescriptor,
 };
-use psila_service::{ClusterLibraryHandler};
+use psila_service::ClusterLibraryHandler;
 
 use nrf_smartled::pwm::Pwm;
 use smart_leds::{gamma, RGB8};
@@ -517,7 +517,12 @@ impl ClusterLibraryHandler for ClusterHandler {
                 Ok(())
             }
             (_, _, _) => {
-                defmt::info!("Command {=u16:04x} {=u16:04x} {=u8:04x}", profile, cluster, command);
+                defmt::info!(
+                    "Command {=u16:04x} {=u16:04x} {=u8:04x}",
+                    profile,
+                    cluster,
+                    command
+                );
                 Err(ClusterLibraryStatus::UnsupportedClusterCommand)
             }
         }
@@ -713,8 +718,7 @@ mod app {
                     let data = &grant[1..=packet_length];
                     if no_cca {
                         let _ = radio.queue_transmission_no_cca(data);
-                    }
-                    else {
+                    } else {
                         let _ = radio.queue_transmission(data);
                     }
                     grant.release(packet_length + 1);
